@@ -103,7 +103,7 @@ export default function Teacher() {
     return (
       <main className="wrap">
         <header>
-          <span className="brand">Neuro-Fluent · Кабинет препода</span>
+          <span className="brand">Neuro-Fluent Shadow · Кабинет</span>
           <h1>Вход для препода</h1>
         </header>
         <form
@@ -129,7 +129,7 @@ export default function Teacher() {
     <main className="wrap wide">
       <header>
         <div className="topline">
-          <span className="brand">Neuro-Fluent · Кабинет препода</span>
+          <span className="brand">Neuro-Fluent Shadow · Кабинет</span>
           <a className="linkish" href="/">
             ← В тренажёр
           </a>
@@ -249,7 +249,7 @@ export default function Teacher() {
                   <div className="pack-picks">
                     {PACKS.map((p) => (
                       <button key={p.id} type="button" className="chip" onClick={() => setAssignText((t) => [t.trim(), ...p.phrases].filter(Boolean).join("\n"))}>
-                        + {p.icon} {p.title}
+                        + {p.title}
                       </button>
                     ))}
                   </div>

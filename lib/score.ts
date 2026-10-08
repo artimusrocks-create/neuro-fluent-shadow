@@ -90,11 +90,11 @@ function pearson(x: number[], y: number[]): number {
 }
 
 function verdictFor(total: number): string {
-  if (total >= 90) return "Тебя спросят, из какого ты штата.";
-  if (total >= 75) return "Почти свой. Выдаёт только старательность.";
-  if (total >= 55) return "Акцент слышно, но понимают без «sorry?».";
-  if (total >= 35) return "Учебник одобряет. Американец переспросит.";
-  return "«London is the capital of Great Britain». Давай ещё раз.";
+  if (total >= 90) return "Звучит как у носителя.";
+  if (total >= 75) return "Очень близко. Осталось чуть-чуть.";
+  if (total >= 55) return "Понятно, но акцент слышен.";
+  if (total >= 35) return "Носитель переспросит. Попробуй ещё раз.";
+  return "Давай ещё раз, медленнее.";
 }
 
 export function scoreTake(opts: { target: string; stressed: boolean[]; model: WordTiming[]; user: WordTiming[]; heard: string }): ScoreResult {
@@ -146,12 +146,12 @@ export function scoreTake(opts: { target: string; stressed: boolean[]; model: Wo
   const missed = words.filter((w) => w.verdict === "missed").map((w) => w.word);
   const short = words.filter((w) => w.verdict === "short").map((w) => w.word);
   const heavy = words.filter((w) => w.verdict === "heavy").map((w) => w.word);
-  if (missed.length) advice.push(`Не расслышали: ${missed.join(", ")}. Американское ухо их потеряло.`);
-  if (short.length) advice.push(`Ударные проглочены: ${short.join(", ")}. Это главные слова, на них надо давить.`);
-  if (heavy.length) advice.push(`Слишком старательно: ${heavy.join(", ")}. Это мелочь, её надо глотать.`);
-  if (paceRatio > 1.35) advice.push(`Ты медленнее модели в ${paceRatio.toFixed(1)} раза. Не читай, а говори.`);
-  if (paceRatio < 0.7) advice.push("Ты быстрее модели. Скорость не главное, главное — ритм.");
-  if (!advice.length) advice.push("Чисто. Переходи на 🔥 1.15 или бери фразу посложнее.");
+  if (missed.length) advice.push(`Не расслышали: ${missed.join(", ")}.`);
+  if (short.length) advice.push(`Ударные слова слишком короткие: ${short.join(", ")}. Сделай их громче и длиннее.`);
+  if (heavy.length) advice.push(`Служебные слова слишком чёткие: ${heavy.join(", ")}. Говори их тише и быстрее.`);
+  if (paceRatio > 1.35) advice.push(`Ты медленнее модели в ${paceRatio.toFixed(1)} раза.`);
+  if (paceRatio < 0.7) advice.push("Ты быстрее модели. Важнее ритм, чем скорость.");
+  if (!advice.length) advice.push("Чисто. Попробуй на скорости 1.15.");
 
   return {
     total,

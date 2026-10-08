@@ -7,9 +7,9 @@ export const runtime = "nodejs";
 type Update = { message?: { chat: { id: number }; text?: string; from?: { first_name?: string } } };
 
 const WELCOME = (name: string) =>
-  `Привет, ${name}! Это тренажёр Neuro-Fluent 🎧
+  `Привет, ${name}! Это Neuro-Fluent Shadow 🎧
 
-Вставляешь английскую фразу — слышишь, как её на самом деле говорит американец. Повторяешь, записываешь себя, получаешь оценку акцента.
+Вставляешь английскую фразу, слушаешь, как её говорит носитель, повторяешь и получаешь оценку произношения.
 
 Каждое утро буду присылать «Фразу дня». Отписаться — /stop.`;
 
@@ -39,9 +39,9 @@ export async function POST(req: Request) {
       await sendWithApp(chatId, dailyText(), "🎧 Разобрать и повторить");
     } else if (text.startsWith("/stop")) {
       if (r) await r.srem("tg:subs", String(chatId));
-      await sendWithApp(chatId, "Ок, больше не пишу по утрам. Тренажёр никуда не делся — кнопка ниже. Вернуть рассылку: /start");
+      await sendWithApp(chatId, "Готово, утренних сообщений больше не будет. Вернуть: /start");
     } else {
-      await sendWithApp(chatId, "Я пока не болтаю, я тренирую. Жми кнопку ниже и вставляй фразу туда 👇");
+      await sendWithApp(chatId, "Открой тренажёр кнопкой ниже 👇");
     }
   } catch {
     // Never make Telegram retry forever.

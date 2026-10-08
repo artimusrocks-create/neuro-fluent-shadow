@@ -3,13 +3,13 @@ import type { MetadataRoute } from "next";
 // Makes the site installable: "Add to Home Screen" on iPhone, "Install app" on Android/Chrome.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Neuro-Fluent · Шэдоуинг",
-    short_name: "Шэдоуинг",
-    description: "Повторяй за американцем, пока не заговоришь так же.",
+    name: "Neuro-Fluent Shadow",
+    short_name: "NF Shadow",
+    description: "Шэдоуинг американского английского.",
     start_url: "/",
     display: "standalone",
-    background_color: "#f4f2fb",
-    theme_color: "#f4f2fb",
+    background_color: "#fcfbff",
+    theme_color: "#fcfbff",
     lang: "ru",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },

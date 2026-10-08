@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   }
   const text = String(body.text ?? "").trim();
   if (!text) return jsonError("Сначала вставь фразу.", 400);
-  if (text.length > MAX_INPUT_CHARS) return jsonError(`Слишком длинно. До ${MAX_INPUT_CHARS} символов: это шэдоуинг, а не «Война и мир».`, 400);
+  if (text.length > MAX_INPUT_CHARS) return jsonError(`Слишком длинно. Максимум ${MAX_INPUT_CHARS} символов.`, 400);
 
   // Same phrase → same answer, free.
   const key = `bd:${body.cyrillic ? 1 : 0}:${hash(text.toLowerCase())}`;

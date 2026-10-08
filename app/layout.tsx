@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Neuro-Fluent · Шэдоуинг",
+  title: "Neuro-Fluent Shadow",
   description: "Шэдоуинг американского английского: караоке-озвучка, разбор беглой речи и каждое слово по-русски.",
-  appleWebApp: { capable: true, title: "Шэдоуинг", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "NF Shadow", statusBarStyle: "default" },
   icons: { icon: "/icon-192.png", apple: "/apple-touch-icon.png" },
 };
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#F4F2FB" };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#fcfbff" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -18,7 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Onest:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
         />
         {/* Telegram Mini App support: harmless outside Telegram */}
         <script src="https://telegram.org/js/telegram-web-app.js" async />

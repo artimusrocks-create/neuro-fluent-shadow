@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   // Max 30 recordings per student per day.
   const dayCount = await r.incr(`sendcount:${who.id}:${new Date().toISOString().slice(0, 10)}`);
   if (dayCount === 1) await r.expire(`sendcount:${who.id}:${new Date().toISOString().slice(0, 10)}`, 2 * 86400);
-  if (dayCount > 30) return jsonError("На сегодня хватит записей. Препод тоже человек.", 429);
+  if (dayCount > 30) return jsonError("Лимит записей на сегодня.", 429);
 
   const id = newId(6);
   const ext = (file.type || "").includes("mp4") ? "m4a" : "webm";

@@ -186,7 +186,7 @@ export async function renderReel(opts: {
       g.fillStyle = C.lavInk;
       g.textAlign = "center";
       g.textBaseline = "alphabetic";
-      g.fillText("NEURO-FLUENT", W / 2, 170);
+      g.fillText("NEURO-FLUENT SHADOW", W / 2, 170);
       g.textAlign = "left";
 
       if (t < tFast - GAP / 2) {
@@ -210,7 +210,7 @@ export async function renderReel(opts: {
         });
         drawWords(g, smallLayout.placed, i, (k) => (opts.stressed[k] ? C.ink : C.muted), C.lav);
       } else {
-        pill(g, "Повтори 3 раза вслух 👇", 700, C.lav, C.lavInk);
+        pill(g, "Повтори 3 раза вслух", 700, C.lav, C.lavInk);
         g.textAlign = "center";
         g.font = `800 92px ${FONT}`;
         g.fillStyle = C.ink;
@@ -218,7 +218,7 @@ export async function renderReel(opts: {
         g.fillText(fastLine, W / 2, 960);
         g.font = `500 46px ${FONT}`;
         g.fillStyle = C.muted;
-        g.fillText("Разбор и озвучка — Neuro-Fluent", W / 2, 1100);
+        g.fillText("Neuro-Fluent Shadow", W / 2, 1100);
         g.textAlign = "left";
       }
 

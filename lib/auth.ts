@@ -33,7 +33,7 @@ export async function getWho(req: Request): Promise<Who | NextResponse> {
     }
   }
 
-  if (code) return deny("Неверный код. Попроси у препода свою личную ссылку.");
+  if (code) return deny("Неверный код. Попроси у преподавателя личную ссылку.");
 
   // No code at all
   if (r) {
@@ -59,8 +59,8 @@ export async function useLimit(who: Who, kind: Kind): Promise<NextResponse | nul
     const what = { breakdown: "разборов", words: "разборов по словам", speak: "озвучек", score: "оценок" }[kind];
     return deny(
       who.role === "demo"
-        ? `Демо-лимит на сегодня закончился: ${limits[kind]} ${what}. Полный доступ — у препода Neuro-Fluent.`
-        : `На сегодня всё: лимит ${limits[kind]} ${what}. Мозгу тоже нужен отдых. Завтра продолжим.`,
+        ? `Демо-лимит на сегодня: ${limits[kind]} ${what}. Полный доступ — по личной ссылке от преподавателя.`
+        : `Дневной лимит: ${limits[kind]} ${what}. Продолжим завтра.`,
       429
     );
   }

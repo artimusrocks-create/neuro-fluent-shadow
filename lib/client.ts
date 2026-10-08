@@ -114,11 +114,11 @@ export async function fetchScoreWords(take: Blob): Promise<{ text: string; words
 }
 
 const clipCache = new Map<string, Promise<Clip>>();
-export function fetchClip(text: string, speed: number): Promise<Clip> {
-  const key = `${speed}|${text}`;
+export function fetchClip(text: string, speed: number, voice = ""): Promise<Clip> {
+  const key = `${voice}|${speed}|${text}`;
   const hit = clipCache.get(key);
   if (hit) return hit;
-  const p = post<{ audio: string; words: WordTiming[] }>("/api/speak", { text, speed }).then(({ audio, words }) => {
+  const p = post<{ audio: string; words: WordTiming[] }>("/api/speak", { text, speed, voice }).then(({ audio, words }) => {
     const bytes = Uint8Array.from(atob(audio), (c) => c.charCodeAt(0));
     const url = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
     return { url, words: words ?? [] };

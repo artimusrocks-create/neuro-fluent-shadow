@@ -48,5 +48,5 @@ function parseLooseJSON<T>(text: string): T {
   const start = text.search(/[{[]/);
   const end = Math.max(text.lastIndexOf("}"), text.lastIndexOf("]"));
   if (start >= 0 && end > start) return JSON.parse(text.slice(start, end + 1)) as T;
-  throw new Error("ИИ ответил кашей. Нажми «Разобрать» ещё раз.");
+  throw new Error("Не получилось разобрать ответ. Попробуй ещё раз.");
 }

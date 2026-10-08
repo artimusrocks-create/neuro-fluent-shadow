@@ -32,7 +32,7 @@ export async function setupTelegram(origin: string) {
     ],
   });
   await tg("setMyDescription", {
-    description: "Тренажёр американского произношения. Слушаешь живую речь, повторяешь, получаешь оценку акцента. Без «London is the capital».",
+    description: "Neuro-Fluent Shadow — тренажёр американского произношения. Слушаешь, повторяешь, получаешь оценку.",
   }).catch(() => {});
   const me = (await tg("getMe", {})) as { username?: string };
   if (r && me.username) await r.set("cfg:bot", me.username);
@@ -57,5 +57,5 @@ export async function sendWithApp(chatId: number | string, text: string, button 
 
 export function dailyText() {
   const p = phraseOfTheDay();
-  return `📅 Фраза дня · ${p.pack.title}\n\n«${p.text}»\n\nПослушай, как её говорит американец, и повтори три раза вслух. Можно шёпотом в метро, никто не осудит.`;
+  return `📅 Фраза дня · ${p.pack.title}\n\n«${p.text}»\n\nПослушай и повтори три раза вслух.`;
 }

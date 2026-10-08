@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { jsonError } from "@/lib/server";
 import { getWho, isResponse, useLimit } from "@/lib/auth";
 import { blobPut, blobReadText, hasBlob, hash, redis, Stored } from "@/lib/store";
+import { isKnownVoice } from "@/lib/voices";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -43,10 +44,10 @@ export async function POST(req: Request) {
   if (isResponse(who)) return who;
 
   const apiKey = process.env.ELEVENLABS_API_KEY;
-  const voiceId = process.env.ELEVENLABS_VOICE_ID;
-  if (!apiKey || !voiceId) return jsonError("На сервере не задан ключ или голос ElevenLabs.", 500);
+  const fallbackVoice = process.env.ELEVENLABS_VOICE_ID;
+  if (!apiKey || !fallbackVoice) return jsonError("На сервере не задан ключ или голос ElevenLabs.", 500);
 
-  let body: { text?: string; speed?: number };
+  let body: { text?: string; speed?: number; voice?: string };
   try {
     body = await req.json();
   } catch {
@@ -56,6 +57,7 @@ export async function POST(req: Request) {
   if (!text) return jsonError("Нечего озвучивать.", 400);
   if (text.length > 600) return jsonError("Озвучка работает с одной фразой за раз.", 400);
   const speed = clampSpeed(Number(body.speed ?? 1));
+  const voiceId = body.voice && isKnownVoice(body.voice) ? body.voice : fallbackVoice;
   const model = process.env.ELEVENLABS_MODEL || "eleven_multilingual_v2";
 
   // Cache: the same text + speed + voice is generated once, then served from storage for free.

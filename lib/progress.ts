@@ -25,7 +25,7 @@ export type State = {
   today: { date: string; reps: number; records: number; scores: number };
   badges: string[];
   library: LibItem[];
-  settings: { gap: number; hide: boolean };
+  settings: { gap: number; hide: boolean; voice: string; theme: "system" | "light" | "dark"; cyrillic: boolean; tips: boolean };
 };
 export type EventName = keyof Counts | "score";
 
@@ -48,23 +48,23 @@ const EMPTY: State = {
   today: { date: "", reps: 0, records: 0, scores: 0 },
   badges: [],
   library: [],
-  settings: { gap: 1.2, hide: false },
+  settings: { gap: 1.2, hide: false, voice: "", theme: "system", cyrillic: false, tips: true },
 };
 
 // ---------- Badges ----------
 export const BADGES: { id: string; icon: string; title: string; desc: string; test: (s: State) => boolean }[] = [
-  { id: "first_play", icon: "👂", title: "Первый звук", desc: "Послушал фразу. Уже лучше, чем учебник.", test: (s) => s.counts.plays >= 1 },
-  { id: "first_echo", icon: "🦜", title: "Попугай", desc: "Первое Эхо. Попугаи, кстати, без акцента.", test: (s) => s.counts.echoes >= 1 },
-  { id: "first_rec", icon: "🎤", title: "Сказал gonna и не умер", desc: "Записал себя в первый раз.", test: (s) => s.counts.records >= 1 },
-  { id: "first_score", icon: "🧪", title: "Смелость", desc: "Дал ИИ оценить свой акцент.", test: (s) => s.counts.scores >= 1 },
-  { id: "score80", icon: "🗽", title: "Почти американец", desc: "Набрал 80+ за фразу.", test: (s) => s.best >= 80 },
-  { id: "score95", icon: "🦅", title: "Где моя грин-карта?", desc: "Набрал 95+. Подозрительно хорошо.", test: (s) => s.best >= 95 },
-  { id: "builds10", icon: "🧱", title: "Прораб", desc: "10 раз «По кусочкам».", test: (s) => s.counts.builds >= 10 },
-  { id: "streak3", icon: "🔥", title: "Три дня подряд", desc: "Это уже привычка, а не порыв.", test: (s) => streak(s) >= 3 },
-  { id: "streak7", icon: "📆", title: "Неделя без «sorry?»", desc: "7 дней подряд.", test: (s) => streak(s) >= 7 },
-  { id: "lib10", icon: "⭐", title: "Коллекционер", desc: "10 фраз в «Моих фразах».", test: (s) => s.counts.saves >= 10 },
-  { id: "review10", icon: "🔁", title: "Повторение — мать учения", desc: "10 повторений по расписанию.", test: (s) => s.counts.reviews >= 10 },
-  { id: "reels1", icon: "🎬", title: "Блогер", desc: "Сделал первое видео для Reels.", test: (s) => s.counts.reels >= 1 },
+  { id: "first_play", icon: "👂", title: "Первый звук", desc: "Послушал первую фразу.", test: (s) => s.counts.plays >= 1 },
+  { id: "first_echo", icon: "🦜", title: "Первое эхо", desc: "Повторил фразу в режиме «Эхо».", test: (s) => s.counts.echoes >= 1 },
+  { id: "first_rec", icon: "🎤", title: "Первая запись", desc: "Записал себя в первый раз.", test: (s) => s.counts.records >= 1 },
+  { id: "first_score", icon: "🧪", title: "Первая оценка", desc: "Получил оценку произношения.", test: (s) => s.counts.scores >= 1 },
+  { id: "score80", icon: "🗽", title: "80+", desc: "Набрал 80 баллов или больше.", test: (s) => s.best >= 80 },
+  { id: "score95", icon: "🦅", title: "95+", desc: "Набрал 95 баллов или больше.", test: (s) => s.best >= 95 },
+  { id: "builds10", icon: "🧱", title: "По кусочкам ×10", desc: "10 раз прошёл фразу по кусочкам.", test: (s) => s.counts.builds >= 10 },
+  { id: "streak3", icon: "🔥", title: "3 дня подряд", desc: "Занимался три дня подряд.", test: (s) => streak(s) >= 3 },
+  { id: "streak7", icon: "📆", title: "7 дней подряд", desc: "Занимался неделю без перерыва.", test: (s) => streak(s) >= 7 },
+  { id: "lib10", icon: "⭐", title: "10 фраз", desc: "Сохранил 10 фраз.", test: (s) => s.counts.saves >= 10 },
+  { id: "review10", icon: "🔁", title: "10 повторений", desc: "10 повторений по расписанию.", test: (s) => s.counts.reviews >= 10 },
+  { id: "reels1", icon: "🎬", title: "Первое видео", desc: "Сделал видео для Reels.", test: (s) => s.counts.reels >= 1 },
 ];
 
 export function streak(s: State): number {
