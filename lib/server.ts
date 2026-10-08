@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 
-export const MAX_INPUT_CHARS = 1500;
+export const MAX_INPUT_CHARS = 2500;
 
 /** Returns an error response if the passcode is wrong, otherwise null. */
 export function checkPasscode(req: Request): NextResponse | null {

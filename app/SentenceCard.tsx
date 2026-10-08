@@ -8,6 +8,7 @@ import {
   WordInfo,
   alive,
   fetchClip,
+  fetchScoreWords,
   fetchWords,
   findOffset,
   newRun,
@@ -17,12 +18,19 @@ import {
   wait,
   wordAt,
 } from "@/lib/client";
+import { scoreTake, ScoreResult } from "@/lib/score";
+import { review, toggleSave, track, useProgress, libId } from "@/lib/progress";
+import { renderReel } from "@/lib/reels";
+import Waveform from "./Waveform";
 
+// tts = speed asked from the voice; rate = extra browser slow-down (voice can't go below 0.7)
 const SPEEDS = [
-  { v: 0.75, label: "🐢 0.75" },
-  { v: 1, label: "1.0" },
-  { v: 1.15, label: "🔥 1.15" },
+  { id: "0.5", tts: 0.7, rate: 0.715, label: "🐌 0.5" },
+  { id: "0.75", tts: 0.75, rate: 1, label: "🐢 0.75" },
+  { id: "1", tts: 1, rate: 1, label: "1.0" },
+  { id: "1.15", tts: 1.15, rate: 1, label: "🔥 1.15" },
 ];
+type Speed = (typeof SPEEDS)[number];
 const ECHO_REPEATS = 3;
 
 type Props = {
@@ -31,37 +39,46 @@ type Props = {
   total: number;
   showCyrillic: boolean;
   showTip: boolean;
+  fromLibrary?: boolean;
   onPasscodeNeeded: () => void;
 };
 
 /** Loud if it has 2+ capital letters in a row ("BOTH", "aBOUT"). */
 const isLoud = (w: string) => /[A-Z]{2,}/.test(w.replace(/[^A-Za-z]/g, ""));
 
-/** A word is "stressed" in the CLEAR line if it is written in CAPS (2+ letters). */
 function stressFlags(text: string, clear: string): boolean[] {
-  const t = splitWords(text);
   const c = splitWords(clear);
-  return t.map((_, i) => {
-    return isLoud(c[i] ?? "");
-  });
+  return splitWords(text).map((_, i) => isLoud(c[i] ?? ""));
 }
 
-export default function SentenceCard({ s, index, total, showCyrillic, showTip, onPasscodeNeeded }: Props) {
+export default function SentenceCard({ s, index, total, showCyrillic, showTip, fromLibrary, onPasscodeNeeded }: Props) {
+  const progress = useProgress();
+  const { gap, hide } = progress.settings;
+  const saved = progress.library.some((x) => x.id === libId(s.text));
+
   const words = useMemo(() => splitWords(s.text), [s.text]);
   const stressed = useMemo(() => stressFlags(s.text, s.clear), [s.text, s.clear]);
   const chunks = useMemo(() => (Array.isArray(s.chunks) && s.chunks.length ? s.chunks : [s.text]), [s.chunks, s.text]);
 
-  const [speed, setSpeed] = useState(1);
-  const [active, setActive] = useState(-1); // word index being spoken
-  const [range, setRange] = useState<[number, number] | null>(null); // words included in current playback
-  const [busy, setBusy] = useState<string | null>(null); // which mode is running
-  const [status, setStatus] = useState<string>("");
-  const [turn, setTurn] = useState(0); // 0..1 progress of "your turn" gap
+  const [speed, setSpeed] = useState<Speed>(SPEEDS[2]);
+  const [active, setActive] = useState(-1);
+  const [range, setRange] = useState<[number, number] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [status, setStatus] = useState("");
+  const [turn, setTurn] = useState(0);
   const [error, setError] = useState("");
+  const [revealed, setRevealed] = useState(false);
+  const [reviewed, setReviewed] = useState<null | boolean>(null);
 
   const [recording, setRecording] = useState(false);
-  const [myTake, setMyTake] = useState<string | null>(null);
+  const [myTake, setMyTake] = useState<{ url: string; blob: Blob } | null>(null);
   const recRef = useRef<MediaRecorder | null>(null);
+
+  const [scoring, setScoring] = useState(false);
+  const [score, setScore] = useState<ScoreResult | null>(null);
+  const [modelUrl, setModelUrl] = useState<string | null>(null);
+
+  const [reel, setReel] = useState<{ p: number; url?: string; ext?: string } | null>(null);
 
   const [wordsOpen, setWordsOpen] = useState(false);
   const [wordData, setWordData] = useState<WordInfo[] | null>(null);
@@ -69,6 +86,7 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
   const [openWord, setOpenWord] = useState<number | null>(null);
 
   useEffect(() => () => stopAll(), []);
+  const veiled = hide && !revealed;
 
   function handleError(e: unknown) {
     if (e instanceof Cancelled) return;
@@ -88,26 +106,30 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
     setTurn(0);
   }
 
-  /** Speak `text` (a piece of the sentence starting at word `offset`) with karaoke highlight. */
-  async function speak(token: number, text: string, offset: number, spd = speed) {
+  async function speak(token: number, text: string, offset: number, sp: Speed = speed) {
     setStatus("Загружаем голос…");
-    const clip = await fetchClip(text, spd);
+    const clip = await fetchClip(text, sp.tts);
     if (!alive(token)) throw new Cancelled();
     const n = splitWords(text).length;
     setRange(offset >= 0 ? [offset, offset + n - 1] : null);
     setStatus("");
-    const dur = await playUrl(token, clip.url, (t) => {
-      if (offset < 0) return;
-      const i = wordAt(clip.words, t);
-      setActive(i < 0 ? -1 : offset + Math.min(i, n - 1));
-    });
-    setActive(offset >= 0 ? offset + n : -1); // everything in range "done"
+    const dur = await playUrl(
+      token,
+      clip.url,
+      (t) => {
+        if (offset < 0) return;
+        const i = wordAt(clip.words, t);
+        setActive(i < 0 ? -1 : offset + Math.min(i, n - 1));
+      },
+      sp.rate
+    );
+    setActive(offset >= 0 ? offset + n : -1);
     return dur;
   }
 
   async function yourTurn(token: number, seconds: number, label: string) {
     setStatus(label);
-    await wait(token, Math.max(1200, seconds * 1000 + 700), setTurn);
+    await wait(token, Math.max(1200, seconds * gap * 1000 + 600), setTurn);
     setTurn(0);
     setStatus("");
   }
@@ -130,10 +152,15 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
     }
   }
 
-  const play = () => run("play", async (t) => void (await speak(t, s.text, 0)));
+  const play = () =>
+    run("play", async (t) => {
+      track("plays");
+      await speak(t, s.text, 0);
+    });
 
   const echo = () =>
     run("echo", async (t) => {
+      track("echoes");
       for (let r = 1; r <= ECHO_REPEATS; r++) {
         const dur = await speak(t, s.text, 0);
         await yourTurn(t, dur, `🎤 Твоя очередь — ${r}/${ECHO_REPEATS}`);
@@ -142,6 +169,7 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
 
   const buildUp = () =>
     run("build", async (t) => {
+      track("builds");
       for (let i = chunks.length - 1; i >= 0; i--) {
         const piece = chunks.slice(i).join(" ");
         const offset = splitWords(chunks.slice(0, i).join(" ")).length;
@@ -150,8 +178,8 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
       }
     });
 
-  const playPiece = (piece: string, key: string, spd = speed) =>
-    run(key, async (t) => void (await speak(t, piece, findOffset(s.text, piece), spd)));
+  const playPiece = (piece: string, key: string, sp: Speed = speed) =>
+    run(key, async (t) => void (await speak(t, piece, findOffset(s.text, piece), sp)));
 
   async function toggleRecord() {
     if (recording) {
@@ -166,9 +194,12 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
       rec.ondataavailable = (e) => parts.push(e.data);
       rec.onstop = () => {
         stream.getTracks().forEach((tr) => tr.stop());
-        if (myTake) URL.revokeObjectURL(myTake);
-        setMyTake(URL.createObjectURL(new Blob(parts, { type: rec.mimeType || "audio/webm" })));
+        if (myTake) URL.revokeObjectURL(myTake.url);
+        const blob = new Blob(parts, { type: rec.mimeType || "audio/webm" });
+        setMyTake({ url: URL.createObjectURL(blob), blob });
+        setScore(null);
         setRecording(false);
+        track("records");
       };
       recRef.current = rec;
       stopAll();
@@ -188,8 +219,49 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
       setActive(-1);
       setRange(null);
       setStatus("🎧 А теперь ты. Мужайся.");
-      await playUrl(t, myTake);
+      await playUrl(t, myTake.url);
     });
+
+  async function rate() {
+    if (!myTake || scoring) return;
+    setScoring(true);
+    setError("");
+    try {
+      const [heard, model] = await Promise.all([fetchScoreWords(myTake.blob), fetchClip(s.text, 1)]);
+      setModelUrl(model.url);
+      if (!heard.words.length) {
+        setError("Ничего не расслышали. Говори ближе к микрофону и погромче.");
+        return;
+      }
+      const r = scoreTake({ target: s.text, stressed, model: model.words, user: heard.words, heard: heard.text });
+      setScore(r);
+      track("score", r.total);
+    } catch (e) {
+      handleError(e);
+    } finally {
+      setScoring(false);
+    }
+  }
+
+  async function makeReel() {
+    if (reel && !reel.url) return;
+    setError("");
+    setReel({ p: 0 });
+    try {
+      const [slow, fast] = await Promise.all([fetchClip(s.text, 0.75), fetchClip(s.text, 1.15)]);
+      const out = await renderReel({ s, stressed, slow, fast, onProgress: (p) => setReel({ p }) });
+      const url = URL.createObjectURL(out.blob);
+      setReel({ p: 1, url, ext: out.ext });
+      track("reels");
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `neuro-fluent-${Date.now()}.${out.ext}`;
+      a.click();
+    } catch (e) {
+      setReel(null);
+      handleError(e);
+    }
+  }
 
   async function toggleWords() {
     const next = !wordsOpen;
@@ -209,46 +281,46 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
   }
 
   // ----- render helpers -----
-  const blobList = (s.blobs ?? []).map((b) => b.blob).filter(Boolean).sort((a, b) => b.length - a.length);
+  const blobKey = (s.blobs ?? []).map((b) => b.blob).join("|");
   const fastParts = useMemo(() => {
-    if (!blobList.length) return [{ text: s.fast, blob: null as null | string }];
-    const re = new RegExp("(" + blobList.map((b) => b.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")", "g");
+    const list = (s.blobs ?? []).map((b) => b.blob).filter(Boolean).sort((a, b) => b.length - a.length);
+    if (!list.length) return [{ text: s.fast, blob: null as null | string }];
+    const re = new RegExp("(" + list.map((b) => b.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")", "g");
     return s.fast.split(re).map((p, i) => ({ text: p, blob: i % 2 ? p : null }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.fast, blobList.join("|")]);
+  }, [s.fast, blobKey]);
 
   const rhythmSyllables = useMemo(
     () =>
       splitWords(s.rhythm).map((w) =>
-        w.split("-").filter(Boolean).map((syl) => {
-          const letters = syl.replace(/[^A-Za-z]/g, "");
-          return { syl, loud: letters.length > 1 && letters === letters.toUpperCase() };
-        })
+        w
+          .split("-")
+          .filter(Boolean)
+          .map((syl) => {
+            const letters = syl.replace(/[^A-Za-z]/g, "");
+            return { syl, loud: letters.length > 1 && letters === letters.toUpperCase() };
+          })
       ),
     [s.rhythm]
   );
 
   const cyr = Object.entries(s.cyrillic ?? {});
+  const verdictClass = (v: string) => (v === "ok" ? "v-ok" : v === "missed" ? "v-miss" : "v-warn");
 
   return (
     <article className="card">
       <div className="card-head">
         {total > 1 && <span className="num">{index + 1}</span>}
-        <span className="eyebrow">Повторяй за мной</span>
+        <span className="eyebrow">{fromLibrary ? "Повторение по расписанию" : "Повторяй за мной"}</span>
+        <button type="button" className={`star ${saved ? "on" : ""}`} onClick={() => toggleSave(s)} aria-pressed={saved}>
+          {saved ? "★ В моих фразах" : "☆ Сохранить"}
+        </button>
       </div>
 
       {/* Karaoke line */}
-      <p className="karaoke" aria-live="off">
+      <p className={`karaoke ${veiled ? "veiled" : ""}`} aria-hidden={veiled}>
         {words.map((w, i) => {
-          const state = !range
-            ? ""
-            : i < range[0] || i > range[1]
-              ? "dim"
-              : i === active
-                ? "now"
-                : i < active
-                  ? "done"
-                  : "";
+          const state = !range ? "" : i < range[0] || i > range[1] ? "dim" : i === active ? "now" : i < active ? "done" : "";
           return (
             <span key={i} className={`kw ${stressed[i] ? "loud" : "soft"} ${state}`}>
               {w}
@@ -261,13 +333,7 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
       <div className="player">
         <div className="speeds" role="group" aria-label="Скорость">
           {SPEEDS.map((sp) => (
-            <button
-              key={sp.v}
-              type="button"
-              className={`seg ${speed === sp.v ? "on" : ""}`}
-              onClick={() => setSpeed(sp.v)}
-              aria-pressed={speed === sp.v}
-            >
+            <button key={sp.id} type="button" className={`seg ${speed.id === sp.id ? "on" : ""}`} onClick={() => setSpeed(sp)} aria-pressed={speed.id === sp.id}>
               {sp.label}
             </button>
           ))}
@@ -286,9 +352,14 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
             {recording ? "⏺ Остановить запись" : "🎤 Записать себя"}
           </button>
           {myTake && (
-            <button type="button" className={`act ${busy === "compare" ? "running" : ""}`} onClick={compare}>
-              {busy === "compare" ? "■ Стоп" : "🆚 Сравнить"}
-            </button>
+            <>
+              <button type="button" className={`act ${busy === "compare" ? "running" : ""}`} onClick={compare}>
+                {busy === "compare" ? "■ Стоп" : "🆚 Сравнить"}
+              </button>
+              <button type="button" className="act score-btn" onClick={rate} disabled={scoring}>
+                {scoring ? "Слушаем тебя…" : "🧪 Оценить акцент"}
+              </button>
+            </>
           )}
         </div>
         {(status || turn > 0) && (
@@ -304,162 +375,241 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
         {error && <div className="error">{error}</div>}
       </div>
 
-      {s.shadow_tip && <div className="shadow-tip">🎯 {s.shadow_tip}</div>}
-
-      {/* Chunks */}
-      <div className="row">
-        <span className="label l-chunks">Куски</span>
-        <div className="chunks">
-          {chunks.map((c, i) => (
-            <button key={i} type="button" className={`chunk ${busy === `chunk${i}` ? "running" : ""}`} onClick={() => playPiece(c, `chunk${i}`)}>
-              ▶ {c}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="row">
-        <span className="label l-clear">Чётко</span>
-        <div className="clear-text">
-          {splitWords(s.clear).map((w, i) => {
-            const loud = isLoud(w);
-            return (
-              <span key={i}>
-                {loud ? <b>{w}</b> : w}{" "}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="row">
-        <span className="label l-fast">Быстро</span>
-        <div className="fast-text">
-          {fastParts.map((p, i) => {
-            if (!p.blob) return <span key={i}>{p.text}</span>;
-            const b = s.blobs.find((x) => x.blob === p.blob);
-            return (
-              <button key={i} type="button" className="blobmark" title={`Послушать «${b?.written}»`} onClick={() => b && playPiece(b.written, `blob${i}`)}>
-                {p.text}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="row">
-        <span className="label l-rhythm">Ритм</span>
-        <div className="beats">
-          {rhythmSyllables.map((word, wi) => (
-            <span key={wi} className="beat-word">
-              {word.map((x, si) => (
-                <span key={si} className={`beat ${x.loud ? "loud" : ""}`}>
-                  <i className="dot" />
-                  <span>{x.syl}</span>
-                </span>
-              ))}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {s.blobs?.length > 0 && (
-        <div className="row">
-          <span className="label l-blobs">Склейки</span>
-          <ul className="blobs">
-            {s.blobs.map((b, i) => (
-              <li key={i}>
-                <button type="button" className="mini-play" onClick={() => playPiece(b.written, `blobrow${i}`, 0.75)} aria-label={`Послушать медленно: ${b.written}`}>
-                  ▶
-                </button>
-                <span className="w">{b.written}</span>
-                <span className="arrow">→</span>
-                <span className="b">{b.blob}</span>
-                <span className="r">{b.rule}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {showCyrillic && cyr.length > 0 && (
-        <div className="row">
-          <span className="label l-cyr">Кириллица</span>
-          <div className="cyr">
-            {cyr.map(([k, v]) => (
-              <span key={k}>
-                {k} → <b>{v}</b>
+      {/* Score */}
+      {score && (
+        <div className="score">
+          <div className="score-top">
+            <div className="score-num">
+              <b>{score.total}</b>
+              <span>/100</span>
+            </div>
+            <div className="score-main">
+              <div className="meter-label">
+                Русский акцент: <b>{score.accent}%</b>
+              </div>
+              <div className="meter">
+                <i style={{ width: `${score.accent}%` }} />
+              </div>
+              <div className="score-verdict">{score.verdict}</div>
+            </div>
+          </div>
+          <div className="subscores">
+            <span>Понятность {score.intelligibility}</span>
+            <span>Ритм {score.rhythm}</span>
+            <span>Темп {score.pace}</span>
+          </div>
+          <div className="score-words">
+            {score.words.map((w, i) => (
+              <span key={i} className={`sw ${verdictClass(w.verdict)}`} title={w.verdict === "missed" ? "Не расслышали" : w.verdict === "short" ? "Ударное проглочено" : w.verdict === "heavy" ? "Слишком старательно" : "Чисто"}>
+                {w.word}
               </span>
             ))}
           </div>
+          <ul className="advice">
+            {score.advice.map((a, i) => (
+              <li key={i}>{a}</li>
+            ))}
+          </ul>
+          <div className="heard">
+            Американское ухо услышало: <i>«{score.heard || "…"}»</i>
+          </div>
+          {modelUrl && myTake && <Waveform modelUrl={modelUrl} userUrl={myTake.url} />}
         </div>
       )}
 
-      {showTip && s.ru_tip && <div className="tip">🇷🇺 {s.ru_tip}</div>}
-
-      {s.flags && s.flags.length > 0 && (
-        <div className="flags">
-          {s.flags.map((f, i) => (
-            <div key={i} className="flag">
-              {f}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Word-by-word */}
-      <button type="button" className="words-toggle" onClick={toggleWords} aria-expanded={wordsOpen}>
-        {wordsOpen ? "▾" : "▸"} 📖 Каждое слово: перевод, нюансы, этимология, сочетания
-      </button>
-      {wordsOpen && (
-        <div className="words">
-          {wordsLoading && <div className="loading">Разбираем каждое слово. Даже «the». Особенно «the».</div>}
-          {wordData?.map((w, i) =>
-            w.type === "function" ? (
-              <div key={i} className="w-func">
-                <span className="w-word">{w.word}</span>
-                <span className="w-sound">{w.sound}</span>
-                <span className="w-ru">{w.ru}</span>
-                <span className="w-note">{w.note}</span>
-              </div>
-            ) : (
-              <div key={i} className={`w-content ${openWord === i ? "open" : ""}`}>
-                <button type="button" className="w-head" onClick={() => setOpenWord(openWord === i ? null : i)} aria-expanded={openWord === i}>
-                  <span className="w-word big">{w.word}</span>
-                  <span className="w-sound">{w.sound}</span>
-                  <span className="w-ru">{w.ru}</span>
-                  <span className="w-caret">{openWord === i ? "−" : "+"}</span>
-                </button>
-                {openWord === i && (
-                  <div className="w-body">
-                    <button type="button" className="mini-play" onClick={() => playPiece(w.word, `word${i}`, 0.9)} aria-label={`Послушать ${w.word}`}>
-                      ▶
-                    </button>
-                    {w.nuance && (
-                      <p>
-                        <b>Нюанс:</b> {w.nuance}
-                      </p>
-                    )}
-                    {w.etymology && (
-                      <p>
-                        <b>Этимология:</b> {w.etymology} {w.etymology_unsure && <span className="unsure">⚠ проверить</span>}
-                      </p>
-                    )}
-                    {w.collocations && w.collocations.length > 0 && (
-                      <ul className="collos">
-                        {w.collocations.map((c, j) => (
-                          <li key={j}>
-                            <span className="en">{c.en}</span> <span className="ru">— {c.ru}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </div>
-            )
+      {fromLibrary && (
+        <div className="review">
+          {reviewed === null ? (
+            <>
+              <span>Как прошло?</span>
+              <button type="button" className="act" onClick={() => (review(s.text, true), setReviewed(true))}>
+                ✅ Получилось
+              </button>
+              <button type="button" className="act" onClick={() => (review(s.text, false), setReviewed(false))}>
+                😵 Ещё нет
+              </button>
+            </>
+          ) : (
+            <span>{reviewed ? "Отлично. Покажем её снова попозже." : "Ничего. Вернём её завтра."}</span>
           )}
         </div>
+      )}
+
+      {veiled ? (
+        <div className="veil-box">
+          <p>🙈 Режим «Сначала на слух». Послушай 2–3 раза и попробуй повторить, не подглядывая.</p>
+          <button type="button" className="go small" onClick={() => setRevealed(true)}>
+            👀 Показать текст и разбор
+          </button>
+        </div>
+      ) : (
+        <>
+          {s.shadow_tip && <div className="shadow-tip">🎯 {s.shadow_tip}</div>}
+
+          <div className="row">
+            <span className="label l-chunks">Куски</span>
+            <div className="chunks">
+              {chunks.map((c, i) => (
+                <button key={i} type="button" className={`chunk ${busy === `chunk${i}` ? "running" : ""}`} onClick={() => playPiece(c, `chunk${i}`)}>
+                  ▶ {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="row">
+            <span className="label l-clear">Чётко</span>
+            <div className="clear-text">
+              {splitWords(s.clear).map((w, i) => (
+                <span key={i}>{isLoud(w) ? <b>{w}</b> : w} </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="row">
+            <span className="label l-fast">Быстро</span>
+            <div className="fast-text">
+              {fastParts.map((p, i) => {
+                if (!p.blob) return <span key={i}>{p.text}</span>;
+                const b = s.blobs.find((x) => x.blob === p.blob);
+                return (
+                  <button key={i} type="button" className="blobmark" title={`Послушать «${b?.written}»`} onClick={() => b && playPiece(b.written, `blob${i}`)}>
+                    {p.text}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="row">
+            <span className="label l-rhythm">Ритм</span>
+            <div className="beats">
+              {rhythmSyllables.map((word, wi) => (
+                <span key={wi} className="beat-word">
+                  {word.map((x, si) => (
+                    <span key={si} className={`beat ${x.loud ? "loud" : ""}`}>
+                      <i className="dot" />
+                      <span>{x.syl}</span>
+                    </span>
+                  ))}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {s.blobs?.length > 0 && (
+            <div className="row">
+              <span className="label l-blobs">Склейки</span>
+              <ul className="blobs">
+                {s.blobs.map((b, i) => (
+                  <li key={i}>
+                    <button type="button" className="mini-play" onClick={() => playPiece(b.written, `blobrow${i}`, SPEEDS[1])} aria-label={`Послушать медленно: ${b.written}`}>
+                      ▶
+                    </button>
+                    <span className="w">{b.written}</span>
+                    <span className="arrow">→</span>
+                    <span className="b">{b.blob}</span>
+                    <span className="r">{b.rule}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {showCyrillic && cyr.length > 0 && (
+            <div className="row">
+              <span className="label l-cyr">Кириллица</span>
+              <div className="cyr">
+                {cyr.map(([k, v]) => (
+                  <span key={k}>
+                    {k} → <b>{v}</b>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {showTip && s.ru_tip && <div className="tip">🇷🇺 {s.ru_tip}</div>}
+
+          {s.flags && s.flags.length > 0 && (
+            <div className="flags">
+              {s.flags.map((f, i) => (
+                <div key={i} className="flag">
+                  {f}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="card-tools">
+            <button type="button" className="words-toggle" onClick={toggleWords} aria-expanded={wordsOpen}>
+              {wordsOpen ? "▾" : "▸"} 📖 Каждое слово: перевод, нюансы, этимология
+            </button>
+            <button type="button" className="words-toggle" onClick={makeReel} disabled={!!reel && !reel.url}>
+              {reel && !reel.url ? `🎬 Снимаем… ${Math.round(reel.p * 100)}%` : "🎬 Видео для Reels"}
+            </button>
+          </div>
+          {reel?.url && (
+            <div className="reel-done">
+              Видео готово и скачалось.{" "}
+              <a href={reel.url} download={`neuro-fluent.${reel.ext}`}>
+                Скачать ещё раз
+              </a>
+              {reel.ext === "webm" && <span> · Если Instagram капризничает, открой страницу в Chrome на телефоне — там будет mp4.</span>}
+            </div>
+          )}
+
+          {wordsOpen && (
+            <div className="words">
+              {wordsLoading && <div className="loading">Разбираем каждое слово. Даже «the». Особенно «the».</div>}
+              {wordData?.map((w, i) =>
+                w.type === "function" ? (
+                  <div key={i} className="w-func">
+                    <span className="w-word">{w.word}</span>
+                    <span className="w-sound">{w.sound}</span>
+                    <span className="w-ru">{w.ru}</span>
+                    <span className="w-note">{w.note}</span>
+                  </div>
+                ) : (
+                  <div key={i} className={`w-content ${openWord === i ? "open" : ""}`}>
+                    <button type="button" className="w-head" onClick={() => setOpenWord(openWord === i ? null : i)} aria-expanded={openWord === i}>
+                      <span className="w-word big">{w.word}</span>
+                      <span className="w-sound">{w.sound}</span>
+                      <span className="w-ru">{w.ru}</span>
+                      <span className="w-caret">{openWord === i ? "−" : "+"}</span>
+                    </button>
+                    {openWord === i && (
+                      <div className="w-body">
+                        <button type="button" className="mini-play" onClick={() => playPiece(w.word, `word${i}`, SPEEDS[2])} aria-label={`Послушать ${w.word}`}>
+                          ▶
+                        </button>
+                        {w.nuance && (
+                          <p>
+                            <b>Нюанс:</b> {w.nuance}
+                          </p>
+                        )}
+                        {w.etymology && (
+                          <p>
+                            <b>Этимология:</b> {w.etymology} {w.etymology_unsure && <span className="unsure">⚠ проверить</span>}
+                          </p>
+                        )}
+                        {w.collocations && w.collocations.length > 0 && (
+                          <ul className="collos">
+                            {w.collocations.map((c, j) => (
+                              <li key={j}>
+                                <span className="en">{c.en}</span> <span className="ru">— {c.ru}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              )}
+            </div>
+          )}
+        </>
       )}
     </article>
   );

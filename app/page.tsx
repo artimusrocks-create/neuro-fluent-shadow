@@ -3,6 +3,8 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import SentenceCard from "./SentenceCard";
 import { ApiError, Sentence, fetchBreakdown, getPasscode, setPasscode } from "@/lib/client";
+import { PACKS, phraseOfTheDay } from "@/lib/packs";
+import { BADGES, LibItem, isDue, missionProgress, onBadges, setSettings, streak, track, useProgress } from "@/lib/progress";
 
 const EXAMPLE: Sentence[] = [
   {
@@ -45,7 +47,11 @@ const LOADING = [
   "Объясняем, куда делась буква T…",
 ];
 
+type View = "main" | "packs" | "library" | "badges";
+
 export default function Page() {
+  const progress = useProgress();
+  const [view, setView] = useState<View>("main");
   const [text, setText] = useState("");
   const [cyrillic, setCyrillic] = useState(false);
   const [ruTip, setRuTip] = useState(true);
@@ -57,11 +63,24 @@ export default function Page() {
   const [needPass, setNeedPass] = useState(false);
   const [pass, setPass] = useState("");
   const [quip, setQuip] = useState(0);
+  const [mounted, setMounted] = useState(false);
+  const [libOpen, setLibOpen] = useState<LibItem | null>(null);
+  const [toasts, setToasts] = useState<string[]>([]);
   const passRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    setMounted(true);
     setPass(getPasscode());
     setQuip(Math.floor(Math.random() * QUIPS.length));
+    // Telegram Mini App: fit the screen when opened inside Telegram.
+    const tg = (window as unknown as { Telegram?: { WebApp?: { ready: () => void; expand: () => void } } }).Telegram?.WebApp;
+    tg?.ready();
+    tg?.expand();
+    return onBadges((ids) => {
+      setToasts((t) => [...t, ...ids]);
+      setTimeout(() => setToasts((t) => t.slice(ids.length)), 4500);
+    });
   }, []);
 
   useEffect(() => {
@@ -80,19 +99,19 @@ export default function Page() {
     setTimeout(() => passRef.current?.focus(), 50);
   }
 
-  async function submit(e?: FormEvent) {
-    e?.preventDefault();
-    const t = text.trim();
-    if (!t) {
+  async function breakdown(t: string) {
+    if (!t.trim()) {
       setError("Сначала вставь фразу. Мысли мы пока не читаем.");
       return;
     }
+    setView("main");
     setLoading(true);
     setError("");
     try {
-      const d = await fetchBreakdown(t, cyrillic);
+      const d = await fetchBreakdown(t.trim(), cyrillic);
       setSentences(d.sentences);
       setIsExample(false);
+      track("breakdowns");
     } catch (err) {
       if (err instanceof ApiError && err.kind === "passcode") {
         askPasscode();
@@ -102,6 +121,23 @@ export default function Page() {
       setLoading(false);
     }
   }
+
+  function submit(e?: FormEvent) {
+    e?.preventDefault();
+    breakdown(text);
+  }
+
+  function pick(phrase: string) {
+    setText(phrase);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    breakdown(phrase);
+  }
+
+  const potd = phraseOfTheDay();
+  const mission = missionProgress(progress);
+  const st = streak(progress);
+  const due = progress.library.filter(isDue);
+  const sortedLib = [...progress.library].sort((a, b) => (isDue(a) === isDue(b) ? a.due.localeCompare(b.due) : isDue(a) ? -1 : 1));
 
   return (
     <main className="wrap">
@@ -127,6 +163,23 @@ export default function Page() {
         </div>
       </header>
 
+      {/* Progress strip */}
+      {mounted && (
+        <button type="button" className="progress-strip" onClick={() => setView("badges")}>
+          <span className="ps-streak">🔥 {st} {st === 1 ? "день" : st >= 2 && st <= 4 ? "дня" : "дней"} подряд</span>
+          <span className="ps-mission">
+            Миссия дня{" "}
+            {mission.parts.map((p, i) => (
+              <i key={i} className={p.done >= p.of ? "on" : ""} title={`${p.label}: ${p.done}/${p.of}`} />
+            ))}
+            {mission.complete && " ✅"}
+          </span>
+          <span className="ps-badges">
+            🏅 {progress.badges.length}/{BADGES.length}
+          </span>
+        </button>
+      )}
+
       {needPass && (
         <form
           className="passbox"
@@ -148,13 +201,14 @@ export default function Page() {
       <form className="box" onSubmit={submit}>
         <textarea
           id="input"
+          ref={inputRef}
           aria-label="Фраза для шэдоуинга"
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
           }}
-          placeholder="Например: What are you going to do about it?"
+          placeholder="Вставь фразу. Или целый кусок транскрипта с YouTube — разобью на предложения."
         />
         <div className="controls">
           <div className="toggles">
@@ -164,12 +218,41 @@ export default function Page() {
             <label className="chip-toggle">
               <input type="checkbox" checked={ruTip} onChange={(e) => setRuTip(e.target.checked)} /> Советы для русских
             </label>
+            {mounted && (
+              <label className="chip-toggle">
+                <input type="checkbox" checked={progress.settings.hide} onChange={(e) => setSettings({ hide: e.target.checked })} /> 🙈 Сначала на слух
+              </label>
+            )}
           </div>
           <button type="submit" className="go" disabled={loading}>
             {loading ? "Разбираю…" : "Разобрать"} <kbd>Ctrl+↵</kbd>
           </button>
         </div>
+        {mounted && (
+          <div className="gap-row">
+            <label htmlFor="gap">Пауза на повтор в «Эхо»</label>
+            <input id="gap" type="range" min={0.8} max={2.5} step={0.1} value={progress.settings.gap} onChange={(e) => setSettings({ gap: Number(e.target.value) })} />
+            <span>×{progress.settings.gap.toFixed(1)}</span>
+          </div>
+        )}
       </form>
+
+      {/* Tabs */}
+      <nav className="tabs" aria-label="Разделы">
+        <button type="button" className={view === "main" ? "on" : ""} onClick={() => setView("main")}>
+          🎧 Разбор
+        </button>
+        <button type="button" className={view === "packs" ? "on" : ""} onClick={() => setView("packs")}>
+          📦 Наборы фраз
+        </button>
+        <button type="button" className={view === "library" ? "on" : ""} onClick={() => (setView("library"), setLibOpen(null))}>
+          ⭐ Мои фразы{mounted && progress.library.length ? ` · ${progress.library.length}` : ""}
+          {mounted && due.length > 0 && <span className="due-badge">{due.length}</span>}
+        </button>
+        <button type="button" className={view === "badges" ? "on" : ""} onClick={() => setView("badges")}>
+          🏅 Достижения
+        </button>
+      </nav>
 
       {loading && (
         <div className="status">
@@ -183,20 +266,130 @@ export default function Page() {
       )}
       {error && <div className="status error">{error}</div>}
 
-      <section className="results">
-        {isExample && <div className="example-tag">Пример. Жми ▶ и слушай, потом вставь свою фразу</div>}
-        {sentences.map((s, i) => (
-          <SentenceCard
-            key={`${s.text}-${i}`}
-            s={s}
-            index={i}
-            total={sentences.length}
-            showCyrillic={cyrillic}
-            showTip={ruTip}
-            onPasscodeNeeded={askPasscode}
-          />
-        ))}
-      </section>
+      {view === "main" && (
+        <section className="results">
+          {isExample && (
+            <div className="potd">
+              <div>
+                <span className="potd-label">📅 Фраза дня · {potd.pack.title}</span>
+                <p>{potd.text}</p>
+              </div>
+              <button type="button" className="go small" onClick={() => pick(potd.text)}>
+                Разобрать
+              </button>
+            </div>
+          )}
+          {isExample && <div className="example-tag">Пример. Жми ▶ и слушай, потом вставь свою фразу</div>}
+          {sentences.map((s, i) => (
+            <SentenceCard key={`${s.text}-${i}`} s={s} index={i} total={sentences.length} showCyrillic={cyrillic} showTip={ruTip} onPasscodeNeeded={askPasscode} />
+          ))}
+        </section>
+      )}
+
+      {view === "packs" && (
+        <section className="packs">
+          {PACKS.map((p) => (
+            <div key={p.id} className="pack">
+              <div className="pack-head">
+                <span className="pack-icon">{p.icon}</span>
+                <div>
+                  <h2>{p.title}</h2>
+                  <p>{p.blurb}</p>
+                </div>
+              </div>
+              <ul>
+                {p.phrases.map((ph) => (
+                  <li key={ph}>
+                    <button type="button" onClick={() => pick(ph)}>
+                      {ph}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {view === "library" && mounted && (
+        <section className="results">
+          {libOpen ? (
+            <>
+              <button type="button" className="linkish back" onClick={() => setLibOpen(null)}>
+                ← Все мои фразы
+              </button>
+              <SentenceCard key={libOpen.id} s={libOpen.s} index={0} total={1} showCyrillic={cyrillic} showTip={ruTip} fromLibrary onPasscodeNeeded={askPasscode} />
+            </>
+          ) : progress.library.length === 0 ? (
+            <div className="empty">
+              <p>Тут пока пусто. Жми «☆ Сохранить» на любой фразе, и она будет возвращаться к тебе по расписанию: через 1, 3, 7, 14 и 30 дней.</p>
+              <p className="muted">Так работает интервальное повторение. Мозг лучше всего запоминает то, что почти успел забыть.</p>
+            </div>
+          ) : (
+            <>
+              <div className="lib-summary">
+                {due.length ? `Сегодня повторить: ${due.length}. Начни сверху.` : "На сегодня всё повторено. Красавчик."}
+              </div>
+              <ul className="lib-list">
+                {sortedLib.map((x) => (
+                  <li key={x.id}>
+                    <button type="button" onClick={() => setLibOpen(x)}>
+                      <span className="lib-text">{x.s.text}</span>
+                      <span className={`lib-due ${isDue(x) ? "now" : ""}`}>{isDue(x) ? "Повторить" : `с ${x.due.split("-").reverse().slice(0, 2).join(".")}`}</span>
+                      <span className="lib-box">{"●".repeat(x.box) + "○".repeat(5 - x.box)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </section>
+      )}
+
+      {view === "badges" && mounted && (
+        <section className="badges-view">
+          <div className="mission-card">
+            <h2>Миссия дня {mission.complete ? "✅" : ""}</h2>
+            <ul>
+              {mission.parts.map((p, i) => (
+                <li key={i} className={p.done >= p.of ? "done" : ""}>
+                  <span>{p.done >= p.of ? "✓" : "○"}</span> {p.label} <b>{p.done}/{p.of}</b>
+                </li>
+              ))}
+            </ul>
+            <p className="muted">
+              Серия: 🔥 {st}. Лучшая оценка: {progress.best || "—"}. Фраз разобрано: {progress.counts.breakdowns}.
+            </p>
+          </div>
+          <div className="badge-grid">
+            {BADGES.map((b) => {
+              const got = progress.badges.includes(b.id);
+              return (
+                <div key={b.id} className={`badge ${got ? "got" : ""}`}>
+                  <span className="b-icon">{got ? b.icon : "🔒"}</span>
+                  <b>{b.title}</b>
+                  <span>{b.desc}</span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <div className="toasts" aria-live="polite">
+        {toasts.map((id, i) => {
+          const b = BADGES.find((x) => x.id === id);
+          return b ? (
+            <div key={`${id}-${i}`} className="toast">
+              <span>{b.icon}</span>
+              <div>
+                <b>Ачивка: {b.title}</b>
+                <span>{b.desc}</span>
+              </div>
+            </div>
+          ) : null;
+        })}
+      </div>
 
       <footer>Американский английский · Без транскрипции и без «London is the capital»</footer>
     </main>

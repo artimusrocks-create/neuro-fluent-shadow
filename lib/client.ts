@@ -68,6 +68,17 @@ export const fetchBreakdown = (text: string, cyrillic: boolean) =>
 
 export const fetchWords = (sentence: string) => post<{ words: WordInfo[] }>("/api/words", { sentence });
 
+export async function fetchScoreWords(take: Blob): Promise<{ text: string; words: WordTiming[] }> {
+  const fd = new FormData();
+  fd.append("file", take, "take.webm");
+  const res = await fetch("/api/score", { method: "POST", headers: { "x-passcode": getPasscode() }, body: fd });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError(data?.error === "passcode" ? "passcode" : "server", data?.message || `Запрос не прошёл (${res.status}).`);
+  }
+  return data;
+}
+
 const clipCache = new Map<string, Promise<Clip>>();
 export function fetchClip(text: string, speed: number): Promise<Clip> {
   const key = `${speed}|${text}`;
@@ -112,12 +123,15 @@ export function stopAll() {
 }
 
 /** Play a URL. onTime gets currentTime on each animation frame. Resolves on end, rejects Cancelled if stopped. */
-export function playUrl(token: number, url: string, onTime?: (t: number) => void): Promise<number> {
+export function playUrl(token: number, url: string, onTime?: (t: number) => void, rate = 1): Promise<number> {
   return new Promise((resolve, reject) => {
     if (!alive(token)) return reject(new Cancelled());
     const a = el();
+    a.defaultPlaybackRate = rate;
     a.src = url;
     a.currentTime = 0;
+    a.playbackRate = rate;
+    (a as HTMLAudioElement & { preservesPitch?: boolean }).preservesPitch = true;
     let raf = 0;
     const tick = () => {
       onTime?.(a.currentTime);
@@ -130,7 +144,7 @@ export function playUrl(token: number, url: string, onTime?: (t: number) => void
     };
     a.onended = () => {
       cleanup();
-      resolve(a.duration || 0);
+      resolve((a.duration || 0) / rate);
     };
     a.onerror = () => {
       cleanup();
@@ -142,6 +156,7 @@ export function playUrl(token: number, url: string, onTime?: (t: number) => void
     });
     a.play()
       .then(() => {
+        a.playbackRate = rate;
         raf = requestAnimationFrame(tick);
       })
       .catch((e) => {
