@@ -9,7 +9,7 @@ export function checkPasscode(req: Request): NextResponse | null {
   if (!expected) return null; // no passcode set → open app
   const given = req.headers.get("x-passcode") ?? "";
   if (given !== expected) {
-    return NextResponse.json({ error: "passcode", message: "Wrong or missing passcode." }, { status: 401 });
+    return NextResponse.json({ error: "passcode", message: "Неверный пароль. Или его вообще нет." }, { status: 401 });
   }
   return null;
 }
@@ -21,7 +21,7 @@ export function jsonError(message: string, status = 500) {
 /** Ask Claude and parse its reply as JSON (tolerates code fences or a sentence around it). */
 export async function askClaudeJSON<T>(prompt: string, maxTokens: number): Promise<T> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set.");
+  if (!apiKey) throw new Error("На сервере не задан ключ Anthropic.");
   const client = new Anthropic({ apiKey });
   const msg = await client.messages.create({
     model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
@@ -48,5 +48,5 @@ function parseLooseJSON<T>(text: string): T {
   const start = text.search(/[{[]/);
   const end = Math.max(text.lastIndexOf("}"), text.lastIndexOf("]"));
   if (start >= 0 && end > start) return JSON.parse(text.slice(start, end + 1)) as T;
-  throw new Error("Claude's reply wasn't valid JSON.");
+  throw new Error("ИИ ответил кашей. Нажми «Разобрать» ещё раз.");
 }

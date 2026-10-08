@@ -74,10 +74,10 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
     if (e instanceof Cancelled) return;
     if (e instanceof ApiError && e.kind === "passcode") {
       onPasscodeNeeded();
-      setError("Enter the passcode above, then try again.");
+      setError("Введи пароль сверху и попробуй ещё раз.");
       return;
     }
-    setError(e instanceof Error ? e.message : "Something went wrong.");
+    setError(e instanceof Error ? e.message : "Что-то сломалось. Попробуй ещё раз.");
   }
 
   function reset() {
@@ -90,7 +90,7 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
 
   /** Speak `text` (a piece of the sentence starting at word `offset`) with karaoke highlight. */
   async function speak(token: number, text: string, offset: number, spd = speed) {
-    setStatus("Loading voice…");
+    setStatus("Загружаем голос…");
     const clip = await fetchClip(text, spd);
     if (!alive(token)) throw new Cancelled();
     const n = splitWords(text).length;
@@ -136,7 +136,7 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
     run("echo", async (t) => {
       for (let r = 1; r <= ECHO_REPEATS; r++) {
         const dur = await speak(t, s.text, 0);
-        await yourTurn(t, dur, `🎤 Your turn — ${r}/${ECHO_REPEATS}`);
+        await yourTurn(t, dur, `🎤 Твоя очередь — ${r}/${ECHO_REPEATS}`);
       }
     });
 
@@ -146,7 +146,7 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
         const piece = chunks.slice(i).join(" ");
         const offset = splitWords(chunks.slice(0, i).join(" ")).length;
         const dur = await speak(t, piece, offset);
-        await yourTurn(t, dur, `🎤 Repeat — step ${chunks.length - i}/${chunks.length}`);
+        await yourTurn(t, dur, `🎤 Повтори — шаг ${chunks.length - i}/${chunks.length}`);
       }
     });
 
@@ -176,7 +176,7 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
       rec.start();
       setRecording(true);
     } catch {
-      setError("Microphone access was blocked. Allow the mic in your browser, then try again.");
+      setError("Микрофон заблокирован. Разреши доступ в браузере. Мы не подслушиваем, честно.");
     }
   }
 
@@ -187,7 +187,7 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
       await wait(t, 500);
       setActive(-1);
       setRange(null);
-      setStatus("🎧 Now you");
+      setStatus("🎧 А теперь ты. Мужайся.");
       await playUrl(t, myTake);
     });
 
@@ -234,7 +234,7 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
     <article className="card">
       <div className="card-head">
         {total > 1 && <span className="num">{index + 1}</span>}
-        <span className="eyebrow">Shadow this</span>
+        <span className="eyebrow">Повторяй за мной</span>
       </div>
 
       {/* Karaoke line */}
@@ -259,7 +259,7 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
 
       {/* Player */}
       <div className="player">
-        <div className="speeds" role="group" aria-label="Speed">
+        <div className="speeds" role="group" aria-label="Скорость">
           {SPEEDS.map((sp) => (
             <button
               key={sp.v}
@@ -274,20 +274,20 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
         </div>
         <div className="actions">
           <button type="button" className={`act primary ${busy === "play" ? "running" : ""}`} onClick={play}>
-            {busy === "play" ? "■ Stop" : "▶ Play"}
+            {busy === "play" ? "■ Стоп" : "▶ Слушать"}
           </button>
-          <button type="button" className={`act ${busy === "echo" ? "running" : ""}`} onClick={echo} title="Plays, then pauses for you to repeat. 3 rounds.">
-            {busy === "echo" ? "■ Stop" : "🔁 Echo ×3"}
+          <button type="button" className={`act ${busy === "echo" ? "running" : ""}`} onClick={echo} title="Сказал, пауза, твоя очередь. Три круга.">
+            {busy === "echo" ? "■ Стоп" : "🔁 Эхо ×3"}
           </button>
-          <button type="button" className={`act ${busy === "build" ? "running" : ""}`} onClick={buildUp} title="Backchaining: last chunk first, then add one chunk at a time.">
-            {busy === "build" ? "■ Stop" : "🧱 Build-up"}
+          <button type="button" className={`act ${busy === "build" ? "running" : ""}`} onClick={buildUp} title="С конца фразы к началу, по кусочку. Так учат актёров.">
+            {busy === "build" ? "■ Стоп" : "🧱 По кусочкам"}
           </button>
           <button type="button" className={`act ${recording ? "rec" : ""}`} onClick={toggleRecord}>
-            {recording ? "⏺ Stop recording" : "🎤 Record me"}
+            {recording ? "⏺ Остановить запись" : "🎤 Записать себя"}
           </button>
           {myTake && (
             <button type="button" className={`act ${busy === "compare" ? "running" : ""}`} onClick={compare}>
-              {busy === "compare" ? "■ Stop" : "🆚 Compare"}
+              {busy === "compare" ? "■ Стоп" : "🆚 Сравнить"}
             </button>
           )}
         </div>
@@ -308,7 +308,7 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
 
       {/* Chunks */}
       <div className="row">
-        <span className="label l-chunks">Chunks</span>
+        <span className="label l-chunks">Куски</span>
         <div className="chunks">
           {chunks.map((c, i) => (
             <button key={i} type="button" className={`chunk ${busy === `chunk${i}` ? "running" : ""}`} onClick={() => playPiece(c, `chunk${i}`)}>
@@ -319,7 +319,7 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
       </div>
 
       <div className="row">
-        <span className="label l-clear">Clear</span>
+        <span className="label l-clear">Чётко</span>
         <div className="clear-text">
           {splitWords(s.clear).map((w, i) => {
             const loud = isLoud(w);
@@ -333,13 +333,13 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
       </div>
 
       <div className="row">
-        <span className="label l-fast">Fast</span>
+        <span className="label l-fast">Быстро</span>
         <div className="fast-text">
           {fastParts.map((p, i) => {
             if (!p.blob) return <span key={i}>{p.text}</span>;
             const b = s.blobs.find((x) => x.blob === p.blob);
             return (
-              <button key={i} type="button" className="blobmark" title={`Play "${b?.written}"`} onClick={() => b && playPiece(b.written, `blob${i}`)}>
+              <button key={i} type="button" className="blobmark" title={`Послушать «${b?.written}»`} onClick={() => b && playPiece(b.written, `blob${i}`)}>
                 {p.text}
               </button>
             );
@@ -348,7 +348,7 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
       </div>
 
       <div className="row">
-        <span className="label l-rhythm">Rhythm</span>
+        <span className="label l-rhythm">Ритм</span>
         <div className="beats">
           {rhythmSyllables.map((word, wi) => (
             <span key={wi} className="beat-word">
@@ -365,11 +365,11 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
 
       {s.blobs?.length > 0 && (
         <div className="row">
-          <span className="label l-blobs">Blobs</span>
+          <span className="label l-blobs">Склейки</span>
           <ul className="blobs">
             {s.blobs.map((b, i) => (
               <li key={i}>
-                <button type="button" className="mini-play" onClick={() => playPiece(b.written, `blobrow${i}`, 0.75)} aria-label={`Play ${b.written} slowly`}>
+                <button type="button" className="mini-play" onClick={() => playPiece(b.written, `blobrow${i}`, 0.75)} aria-label={`Послушать медленно: ${b.written}`}>
                   ▶
                 </button>
                 <span className="w">{b.written}</span>
@@ -409,11 +409,11 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
 
       {/* Word-by-word */}
       <button type="button" className="words-toggle" onClick={toggleWords} aria-expanded={wordsOpen}>
-        {wordsOpen ? "▾" : "▸"} 📖 Every word: translation, nuance, etymology, collocations
+        {wordsOpen ? "▾" : "▸"} 📖 Каждое слово: перевод, нюансы, этимология, сочетания
       </button>
       {wordsOpen && (
         <div className="words">
-          {wordsLoading && <div className="loading">Breaking down every word…</div>}
+          {wordsLoading && <div className="loading">Разбираем каждое слово. Даже «the». Особенно «the».</div>}
           {wordData?.map((w, i) =>
             w.type === "function" ? (
               <div key={i} className="w-func">
@@ -432,7 +432,7 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, o
                 </button>
                 {openWord === i && (
                   <div className="w-body">
-                    <button type="button" className="mini-play" onClick={() => playPiece(w.word, `word${i}`, 0.9)} aria-label={`Play ${w.word}`}>
+                    <button type="button" className="mini-play" onClick={() => playPiece(w.word, `word${i}`, 0.9)} aria-label={`Послушать ${w.word}`}>
                       ▶
                     </button>
                     {w.nuance && (

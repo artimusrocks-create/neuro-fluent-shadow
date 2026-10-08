@@ -42,17 +42,17 @@ export async function POST(req: Request) {
 
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const voiceId = process.env.ELEVENLABS_VOICE_ID;
-  if (!apiKey || !voiceId) return jsonError("ElevenLabs key or voice ID is not set on the server.", 500);
+  if (!apiKey || !voiceId) return jsonError("На сервере не задан ключ или голос ElevenLabs.", 500);
 
   let body: { text?: string; speed?: number };
   try {
     body = await req.json();
   } catch {
-    return jsonError("Send JSON with 'text' and 'speed'.", 400);
+    return jsonError("Пустой запрос.", 400);
   }
   const text = String(body.text ?? "").trim();
-  if (!text) return jsonError("Nothing to say.", 400);
-  if (text.length > 600) return jsonError("Audio works on one sentence at a time.", 400);
+  if (!text) return jsonError("Нечего озвучивать.", 400);
+  if (text.length > 600) return jsonError("Озвучка работает с одной фразой за раз.", 400);
   const speed = clampSpeed(Number(body.speed ?? 1));
 
   // The "with-timestamps" endpoint returns the audio plus the time each character is spoken,
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    return jsonError(`ElevenLabs error ${res.status}. ${detail.slice(0, 200)}`, 502);
+    return jsonError(`Ошибка озвучки ${res.status}. ${detail.slice(0, 200)}`, 502);
   }
 
   const data = (await res.json()) as { audio_base64: string; alignment?: Alignment; normalized_alignment?: Alignment };

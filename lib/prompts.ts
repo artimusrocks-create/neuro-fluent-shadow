@@ -30,14 +30,16 @@ OUTPUT: reply with ONLY one JSON object, no other text, in this shape:
   "clear": "same sentence with stressed content words in CAPS",
   "fast": "connected-speech respelling; blobs glued with no spaces inside",
   "rhythm": "syllable-by-syllable, syllables of one word joined with hyphens, words separated by spaces, loud syllables in CAPS",
-  "blobs": [{"written":"start at the","blob":"stardathuh","rule":"Flap (E) + Elision (C)"}],
+  "blobs": [{"written":"start at the","blob":"stardathuh","rule":"Флэп (E) + Выпадение (C): T глотается перед th"}],
   "chunks": ["I did start", "at the beginning", "with both of my foreign languages."],
-  "shadow_tip": "one short line: the single most important thing to copy when shadowing this sentence (where the main beat lands, what to blur)",
-  "ru_tip": "one short line for a Russian speaker, in English, or empty string",
-  "flags": ["one short line per thing under 90% sure, with the safer or more aggressive alternative"],
+  "shadow_tip": "IN RUSSIAN, one short line: the single most important thing to copy when shadowing this sentence (where the main beat lands, what to blur)",
+  "ru_tip": "IN RUSSIAN, one short line about the typical Russian-speaker trap in this sentence, or empty string",
+  "flags": ["IN RUSSIAN, one short line per thing under 90% sure, with the safer or more aggressive alternative"],
   "cyrillic": ${wantCyrillic ? '{"<blob>":"<Cyrillic echo>"} for every blob' : "{}"}
 }]}
 Rules: every "blob" string must appear exactly as written inside "fast". Keep tips and flags to one short line each. No IPA.
+"rule" is written IN RUSSIAN using these names: Словарь (готовое сокращение), Сокращение (A), Уподобление (B), Выпадение (C), Связка (D), Флэп (E) — plus a few words on what happens.
+Russian style for shadow_tip, ru_tip, flags and rule: modern native Russian, informal "ты", short, a little cheeky and funny like a sharp teacher who has seen every Russian-speaker mistake. Never translated-sounding. No calques. English words and respellings stay in Latin letters.
 
 INPUT:
 ${text}`;

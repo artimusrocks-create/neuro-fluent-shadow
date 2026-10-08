@@ -13,19 +13,19 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return jsonError("Send JSON with a 'text' field.", 400);
+    return jsonError("Пустой запрос.", 400);
   }
   const text = String(body.text ?? "").trim();
-  if (!text) return jsonError("Type a phrase first.", 400);
-  if (text.length > MAX_INPUT_CHARS) return jsonError(`That's too long. Keep it under ${MAX_INPUT_CHARS} characters.`, 400);
+  if (!text) return jsonError("Сначала вставь фразу.", 400);
+  if (text.length > MAX_INPUT_CHARS) return jsonError(`Слишком длинно. До ${MAX_INPUT_CHARS} символов: это шэдоуинг, а не «Война и мир».`, 400);
 
   try {
     const data = await askClaudeJSON<{ sentences: unknown[] }>(breakdownPrompt(text, !!body.cyrillic), 6000);
     if (!data || !Array.isArray(data.sentences) || !data.sentences.length) {
-      return jsonError("The breakdown came back empty. Try again.", 502);
+      return jsonError("Разбор пришёл пустым. Попробуй ещё раз.", 502);
     }
     return NextResponse.json(data);
   } catch (e) {
-    return jsonError(e instanceof Error ? e.message : "Breakdown failed.", 502);
+    return jsonError(e instanceof Error ? e.message : "Разбор не удался.", 502);
   }
 }

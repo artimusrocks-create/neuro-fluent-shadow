@@ -57,7 +57,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new ApiError(data?.error === "passcode" ? "passcode" : "server", data?.message || `Request failed (${res.status}).`);
+    throw new ApiError(data?.error === "passcode" ? "passcode" : "server", data?.message || `Запрос не прошёл (${res.status}).`);
   }
   return data as T;
 }
@@ -134,7 +134,7 @@ export function playUrl(token: number, url: string, onTime?: (t: number) => void
     };
     a.onerror = () => {
       cleanup();
-      reject(new Error("Audio couldn't play."));
+      reject(new Error("Звук не воспроизводится."));
     };
     stopHooks.push(() => {
       cleanup();
