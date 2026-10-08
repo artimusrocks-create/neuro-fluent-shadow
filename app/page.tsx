@@ -2,9 +2,9 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import SentenceCard from "./SentenceCard";
-import { ApiError, Sentence, fetchBreakdown, getPasscode, setPasscode } from "@/lib/client";
+import { ApiError, Me, Sentence, fetchBreakdown, fetchMe, getPasscode, recAudioUrl, saveProgressRemote, setPasscode } from "@/lib/client";
 import { PACKS, phraseOfTheDay } from "@/lib/packs";
-import { BADGES, LibItem, isDue, missionProgress, onBadges, setSettings, streak, track, useProgress } from "@/lib/progress";
+import { BADGES, LibItem, getState, isDue, mergeRemote, missionProgress, onBadges, onChange, setSettings, streak, track, useProgress } from "@/lib/progress";
 
 const EXAMPLE: Sentence[] = [
   {
@@ -47,7 +47,7 @@ const LOADING = [
   "Объясняем, куда делась буква T…",
 ];
 
-type View = "main" | "packs" | "library" | "badges";
+type View = "main" | "packs" | "library" | "badges" | "teacher";
 
 export default function Page() {
   const progress = useProgress();
@@ -66,11 +66,48 @@ export default function Page() {
   const [mounted, setMounted] = useState(false);
   const [libOpen, setLibOpen] = useState<LibItem | null>(null);
   const [toasts, setToasts] = useState<string[]>([]);
+  const [me, setMe] = useState<Me | null>(null);
   const passRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  async function loadMe() {
+    try {
+      const m = await fetchMe();
+      setMe(m);
+      if (m.role === "student" && m.progress) mergeRemote(m.progress as never);
+    } catch (e) {
+      if (e instanceof ApiError && e.kind === "passcode") {
+        setMe(null);
+        setError("Код не подошёл. Попроси у препода свою личную ссылку.");
+      }
+    }
+  }
+
+  // Keep a student's progress in sync with the server (debounced).
+  useEffect(() => {
+    if (me?.role !== "student") return;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const off = onChange(() => {
+      clearTimeout(t);
+      t = setTimeout(() => saveProgressRemote(getState()).catch(() => {}), 2500);
+    });
+    return () => {
+      off();
+      clearTimeout(t);
+    };
+  }, [me?.role]);
+
   useEffect(() => {
     setMounted(true);
+    // Personal link from the teacher: /?code=lena-7k3q
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get("code");
+    if (code) {
+      setPasscode(code.trim());
+      url.searchParams.delete("code");
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    }
+    loadMe();
     setPass(getPasscode());
     setQuip(Math.floor(Math.random() * QUIPS.length));
     // Telegram Mini App: fit the screen when opened inside Telegram.
@@ -163,6 +200,26 @@ export default function Page() {
         </div>
       </header>
 
+      {mounted && me && (
+        <div className={`whoami role-${me.role}`}>
+          {me.role === "demo" && (
+            <span>
+              🎟 Демо-режим: {me.limits?.breakdown ?? 5} своих фраз в день, наборы фраз без ограничений. Полный доступ — по личной ссылке от препода.
+            </span>
+          )}
+          {me.role === "student" && (
+            <span>
+              Привет, {me.name} 👋 {me.assigned.length ? `Препод задал тебе фраз: ${me.assigned.length}.` : ""}
+            </span>
+          )}
+          {me.role === "teacher" && (
+            <span>
+              Ты в режиме препода. <a href="/teacher">🧑‍🏫 Открыть кабинет</a>
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Progress strip */}
       {mounted && (
         <button type="button" className="progress-strip" onClick={() => setView("badges")}>
@@ -188,6 +245,7 @@ export default function Page() {
             setPasscode(pass.trim());
             setNeedPass(false);
             setError("");
+            loadMe();
           }}
         >
           <label htmlFor="pass">Пароль</label>
@@ -249,6 +307,12 @@ export default function Page() {
           ⭐ Мои фразы{mounted && progress.library.length ? ` · ${progress.library.length}` : ""}
           {mounted && due.length > 0 && <span className="due-badge">{due.length}</span>}
         </button>
+        {me?.role === "student" && (
+          <button type="button" className={view === "teacher" ? "on" : ""} onClick={() => (setView("teacher"), loadMe())}>
+            📌 От препода
+            {me.recs.some((r) => r.feedback) && <span className="due-badge">{me.recs.filter((r) => r.feedback).length}</span>}
+          </button>
+        )}
         <button type="button" className={view === "badges" ? "on" : ""} onClick={() => setView("badges")}>
           🏅 Достижения
         </button>
@@ -281,7 +345,7 @@ export default function Page() {
           )}
           {isExample && <div className="example-tag">Пример. Жми ▶ и слушай, потом вставь свою фразу</div>}
           {sentences.map((s, i) => (
-            <SentenceCard key={`${s.text}-${i}`} s={s} index={i} total={sentences.length} showCyrillic={cyrillic} showTip={ruTip} onPasscodeNeeded={askPasscode} />
+            <SentenceCard key={`${s.text}-${i}`} s={s} index={i} total={sentences.length} showCyrillic={cyrillic} showTip={ruTip} canSend={me?.role === "student"} onPasscodeNeeded={askPasscode} />
           ))}
         </section>
       )}
@@ -318,7 +382,7 @@ export default function Page() {
               <button type="button" className="linkish back" onClick={() => setLibOpen(null)}>
                 ← Все мои фразы
               </button>
-              <SentenceCard key={libOpen.id} s={libOpen.s} index={0} total={1} showCyrillic={cyrillic} showTip={ruTip} fromLibrary onPasscodeNeeded={askPasscode} />
+              <SentenceCard key={libOpen.id} s={libOpen.s} index={0} total={1} showCyrillic={cyrillic} showTip={ruTip} fromLibrary canSend={me?.role === "student"} onPasscodeNeeded={askPasscode} />
             </>
           ) : progress.library.length === 0 ? (
             <div className="empty">
@@ -343,6 +407,52 @@ export default function Page() {
               </ul>
             </>
           )}
+        </section>
+      )}
+
+      {view === "teacher" && me?.role === "student" && (
+        <section className="results">
+          <div className="pack">
+            <div className="pack-head">
+              <span className="pack-icon">📌</span>
+              <div>
+                <h2>Задано</h2>
+                <p>{me.assigned.length ? "Тапни фразу, разбери, повтори, запиши и отправь." : "Пока ничего не задано. Отдыхай, но недолго."}</p>
+              </div>
+            </div>
+            {me.assigned.length > 0 && (
+              <ul>
+                {me.assigned.map((ph) => (
+                  <li key={ph}>
+                    <button type="button" onClick={() => pick(ph)}>
+                      {ph}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="pack">
+            <div className="pack-head">
+              <span className="pack-icon">📤</span>
+              <div>
+                <h2>Мои записи</h2>
+                <p>{me.recs.length ? "Что ты отправил и что ответил препод." : "Запиши себя на любой фразе и жми «📤 Отправить преподу»."}</p>
+              </div>
+            </div>
+            <ul className="my-recs">
+              {me.recs.map((r) => (
+                <li key={r.id}>
+                  <div className="mr-top">
+                    <b>{r.text}</b>
+                    {r.score !== null && <span className="mr-score">{r.score}/100</span>}
+                  </div>
+                  <audio controls preload="none" src={recAudioUrl(r)} />
+                  {r.feedback ? <div className="mr-fb">🧑‍🏫 {r.feedback}</div> : <div className="muted">Препод ещё не послушал.</div>}
+                </li>
+              ))}
+            </ul>
+          </div>
         </section>
       )}
 

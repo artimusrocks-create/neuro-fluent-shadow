@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { checkPasscode, jsonError } from "@/lib/server";
+import { jsonError } from "@/lib/server";
+import { getWho, isResponse, useLimit } from "@/lib/auth";
+import { blobPut, blobReadText, hasBlob, hash, redis, Stored } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -37,8 +39,8 @@ function toWords(a: Alignment | null | undefined): WordTiming[] {
 }
 
 export async function POST(req: Request) {
-  const denied = checkPasscode(req);
-  if (denied) return denied;
+  const who = await getWho(req);
+  if (isResponse(who)) return who;
 
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const voiceId = process.env.ELEVENLABS_VOICE_ID;
@@ -54,6 +56,21 @@ export async function POST(req: Request) {
   if (!text) return jsonError("Нечего озвучивать.", 400);
   if (text.length > 600) return jsonError("Озвучка работает с одной фразой за раз.", 400);
   const speed = clampSpeed(Number(body.speed ?? 1));
+  const model = process.env.ELEVENLABS_MODEL || "eleven_multilingual_v2";
+
+  // Cache: the same text + speed + voice is generated once, then served from storage for free.
+  const r = redis();
+  const cacheKey = `tts:${hash(`${voiceId}|${model}|${speed}|${text}`)}`;
+  if (r && hasBlob()) {
+    const ptr = await r.get<Stored>(cacheKey).catch(() => null);
+    if (ptr) {
+      const json = await blobReadText(ptr);
+      if (json) return new Response(json, { headers: { "Content-Type": "application/json", "Cache-Control": "private, max-age=86400" } });
+    }
+  }
+
+  const limited = await useLimit(who, "speak");
+  if (limited) return limited;
 
   // The "with-timestamps" endpoint returns the audio plus the time each character is spoken,
   // which powers the karaoke highlight.
@@ -64,7 +81,7 @@ export async function POST(req: Request) {
       headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
       body: JSON.stringify({
         text,
-        model_id: process.env.ELEVENLABS_MODEL || "eleven_multilingual_v2",
+        model_id: model,
         voice_settings: { stability: 0.45, similarity_boost: 0.8, style: 0.2, use_speaker_boost: true, speed },
       }),
     }
@@ -76,8 +93,12 @@ export async function POST(req: Request) {
   }
 
   const data = (await res.json()) as { audio_base64: string; alignment?: Alignment; normalized_alignment?: Alignment };
-  return NextResponse.json(
-    { audio: data.audio_base64, words: toWords(data.alignment ?? data.normalized_alignment) },
-    { headers: { "Cache-Control": "private, max-age=86400" } }
-  );
+  const payload = { audio: data.audio_base64, words: toWords(data.alignment ?? data.normalized_alignment) };
+  if (r && hasBlob()) {
+    try {
+      const stored = await blobPut(`tts/${cacheKey.slice(4)}.json`, JSON.stringify(payload), "application/json");
+      await r.set(cacheKey, stored, { ex: 365 * 86400 });
+    } catch {}
+  }
+  return NextResponse.json(payload, { headers: { "Cache-Control": "private, max-age=86400" } });
 }

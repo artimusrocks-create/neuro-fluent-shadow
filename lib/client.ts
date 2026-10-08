@@ -63,6 +63,40 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 // ---------- API calls ----------
+export type MyRec = { id: string; text: string; score: number | null; at: string; feedback: string | null; feedbackAt: string | null; audio: string; name: string; studentId: string; seen: boolean };
+export type Me = {
+  role: "teacher" | "student" | "demo";
+  name: string;
+  db: boolean;
+  assigned: string[];
+  recs: MyRec[];
+  progress: unknown;
+  limits?: Record<string, number>;
+  usage?: Record<string, number>;
+};
+
+async function call<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, { ...init, headers: { ...(init?.headers ?? {}), "x-passcode": getPasscode() } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(data?.error === "passcode" ? "passcode" : "server", data?.message || `Запрос не прошёл (${res.status}).`);
+  return data as T;
+}
+
+export const fetchMe = () => call<Me>("/api/me");
+export const saveProgressRemote = (progress: unknown) =>
+  call<{ ok: boolean }>("/api/me", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ progress }) });
+export function sendToTeacher(take: Blob, text: string, score: number | null) {
+  const fd = new FormData();
+  fd.append("file", take, "take.webm");
+  fd.append("text", text);
+  if (score !== null) fd.append("score", String(score));
+  return call<{ ok: boolean }>("/api/send", { method: "POST", body: fd });
+}
+export const teacherGet = <T,>() => call<T>("/api/teacher");
+export const teacherDo = <T,>(body: Record<string, unknown>) =>
+  call<T>("/api/teacher", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+/** Audio URL for a recording, with the code so the <audio> tag is allowed to load it. */
+export const recAudioUrl = (r: { audio: string }) => `${r.audio}&code=${encodeURIComponent(getPasscode())}`;
 export const fetchBreakdown = (text: string, cyrillic: boolean) =>
   post<{ sentences: Sentence[] }>("/api/breakdown", { text, cyrillic });
 

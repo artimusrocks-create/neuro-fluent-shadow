@@ -120,6 +120,36 @@ function commit(next: State) {
   if (unlocked.length) badgeListeners.forEach((f) => f(unlocked));
 }
 
+/** Merge progress saved on the server (another device) into this browser's. */
+export function mergeRemote(remote: Partial<State> | null) {
+  if (!remote || typeof remote !== "object") return;
+  const s = getState();
+  const counts = { ...s.counts };
+  for (const k of Object.keys(counts) as (keyof Counts)[]) counts[k] = Math.max(counts[k], Number(remote.counts?.[k] ?? 0));
+  const lib = new Map(s.library.map((x) => [x.id, x]));
+  for (const x of remote.library ?? []) if (!lib.has(x.id)) lib.set(x.id, x);
+  const today = remote.today && remote.today.date === s.today.date
+    ? { ...s.today, reps: Math.max(s.today.reps, remote.today.reps), records: Math.max(s.today.records, remote.today.records), scores: Math.max(s.today.scores, remote.today.scores) }
+    : s.today.date ? s.today : remote.today ?? s.today;
+  commit({
+    ...s,
+    days: Array.from(new Set([...s.days, ...(remote.days ?? [])])).sort().slice(-400),
+    counts,
+    best: Math.max(s.best, remote.best ?? 0),
+    today,
+    badges: Array.from(new Set([...s.badges, ...(remote.badges ?? [])])),
+    library: Array.from(lib.values()),
+  });
+}
+
+/** Call f whenever progress changes. */
+export function onChange(f: () => void) {
+  listeners.add(f);
+  return () => {
+    listeners.delete(f);
+  };
+}
+
 export function getState(): State {
   load();
   return state;

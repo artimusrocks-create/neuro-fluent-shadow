@@ -10,6 +10,7 @@ import {
   fetchClip,
   fetchScoreWords,
   fetchWords,
+  sendToTeacher,
   findOffset,
   newRun,
   playUrl,
@@ -40,6 +41,7 @@ type Props = {
   showCyrillic: boolean;
   showTip: boolean;
   fromLibrary?: boolean;
+  canSend?: boolean;
   onPasscodeNeeded: () => void;
 };
 
@@ -51,7 +53,7 @@ function stressFlags(text: string, clear: string): boolean[] {
   return splitWords(text).map((_, i) => isLoud(c[i] ?? ""));
 }
 
-export default function SentenceCard({ s, index, total, showCyrillic, showTip, fromLibrary, onPasscodeNeeded }: Props) {
+export default function SentenceCard({ s, index, total, showCyrillic, showTip, fromLibrary, canSend, onPasscodeNeeded }: Props) {
   const progress = useProgress();
   const { gap, hide } = progress.settings;
   const saved = progress.library.some((x) => x.id === libId(s.text));
@@ -78,6 +80,7 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, f
   const [score, setScore] = useState<ScoreResult | null>(null);
   const [modelUrl, setModelUrl] = useState<string | null>(null);
 
+  const [sendState, setSendState] = useState<"idle" | "sending" | "sent">("idle");
   const [reel, setReel] = useState<{ p: number; url?: string; ext?: string } | null>(null);
 
   const [wordsOpen, setWordsOpen] = useState(false);
@@ -198,6 +201,7 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, f
         const blob = new Blob(parts, { type: rec.mimeType || "audio/webm" });
         setMyTake({ url: URL.createObjectURL(blob), blob });
         setScore(null);
+        setSendState("idle");
         setRecording(false);
         track("records");
       };
@@ -240,6 +244,19 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, f
       handleError(e);
     } finally {
       setScoring(false);
+    }
+  }
+
+  async function send() {
+    if (!myTake || sendState !== "idle") return;
+    setSendState("sending");
+    setError("");
+    try {
+      await sendToTeacher(myTake.blob, s.text, score?.total ?? null);
+      setSendState("sent");
+    } catch (e) {
+      setSendState("idle");
+      handleError(e);
     }
   }
 
@@ -359,6 +376,11 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, f
               <button type="button" className="act score-btn" onClick={rate} disabled={scoring}>
                 {scoring ? "Слушаем тебя…" : "🧪 Оценить акцент"}
               </button>
+              {canSend && (
+                <button type="button" className="act send-btn" onClick={send} disabled={sendState !== "idle"}>
+                  {sendState === "sent" ? "✓ Отправлено преподу" : sendState === "sending" ? "Отправляем…" : "📤 Отправить преподу"}
+                </button>
+              )}
             </>
           )}
         </div>

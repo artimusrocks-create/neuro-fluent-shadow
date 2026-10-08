@@ -300,3 +300,44 @@ footer { font-size: 13px; color: var(--muted); text-align: center; }
 .words-toggle:disabled { opacity: .7; cursor: wait; }
 .reel-done { font-size: 14px; background: var(--mint); color: var(--mint-ink); border-radius: 12px; padding: 8px 12px; }
 .reel-done a { color: inherit; font-weight: 700; }
+
+/* ---------- v3: accounts ---------- */
+.whoami { border-radius: 14px; padding: 10px 14px; font-size: 14px; font-weight: 500; }
+.whoami.role-demo { background: var(--sky); color: var(--sky-ink); }
+.whoami.role-student { background: var(--mint); color: var(--mint-ink); }
+.whoami.role-teacher { background: var(--lav); color: var(--lav-ink); }
+.whoami a { color: inherit; font-weight: 700; }
+.act.send-btn { background: var(--lav); color: var(--lav-ink); border-color: transparent; }
+.my-recs { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.my-recs li { background: var(--bg); border-radius: 14px; padding: 10px 12px; display: grid; gap: 6px; }
+.my-recs audio { width: 100%; height: 36px; }
+.mr-top { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; flex-wrap: wrap; }
+.mr-score { font-family: var(--font-mono); color: var(--mint-ink); font-weight: 600; }
+.mr-fb { background: var(--surface); border-left: 3px solid var(--lav-ink); border-radius: 8px; padding: 8px 10px; font-size: 15px; }
+
+/* ---------- v3: teacher dashboard ---------- */
+.wrap.wide { max-width: 900px; }
+.flash { background: var(--mint); color: var(--mint-ink); border-radius: 12px; padding: 8px 12px; font-weight: 600; font-size: 14px; }
+.add-student { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.add-student input { flex: 1; min-width: 180px; border: 0; outline: none; font: inherit; font-size: 16px; padding: 6px 8px; background: transparent; color: var(--ink); }
+.srow { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; display: grid; gap: 10px; }
+.srow-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline; }
+.sname { font-size: 18px; }
+.sstats { display: flex; flex-wrap: wrap; gap: 10px; font-size: 14px; font-weight: 600; }
+.susage { font-size: 13px; color: var(--muted); }
+.slink { font-family: var(--font-mono); font-size: 12px; color: var(--muted); word-break: break-all; }
+.sedit { display: grid; gap: 8px; background: var(--bg); border-radius: 14px; padding: 12px; }
+.sedit label { font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+.sedit textarea, .fb-row textarea { width: 100%; font: inherit; font-size: 15px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; background: var(--surface); color: var(--ink); resize: vertical; }
+.sedit.limits { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); align-items: end; }
+.sedit.limits input { font: inherit; border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; background: var(--surface); color: var(--ink); }
+.pack-picks { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 13px; }
+.chip:hover { border-color: var(--lav-ink); }
+.inbox { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; display: grid; gap: 8px; }
+.inbox.unread { border-color: var(--lav-ink); box-shadow: 0 0 0 2px var(--lav); }
+.inbox audio { width: 100%; height: 36px; }
+.inbox-text { font-size: 17px; font-weight: 500; }
+.fb-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.fb-row textarea { flex: 1; min-width: 200px; }
+code { font-family: var(--font-mono); font-size: .9em; background: var(--bg); padding: 1px 5px; border-radius: 6px; }

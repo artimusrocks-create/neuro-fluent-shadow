@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { checkPasscode, jsonError } from "@/lib/server";
+import { jsonError } from "@/lib/server";
+import { getWho, isResponse, useLimit } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -9,8 +10,10 @@ export const maxDuration = 60;
  * Returns the words they said with timings; the scoring itself happens in the browser.
  */
 export async function POST(req: Request) {
-  const denied = checkPasscode(req);
-  if (denied) return denied;
+  const who = await getWho(req);
+  if (isResponse(who)) return who;
+  const limited = await useLimit(who, "score");
+  if (limited) return limited;
 
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) return jsonError("На сервере не задан ключ ElevenLabs.", 500);
