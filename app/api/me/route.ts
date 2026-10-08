@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getWho, isResponse, usage, DEMO_LIMITS, STUDENT_LIMITS } from "@/lib/auth";
+import { getWho, isResponse, usage, freeUsed, CONTACT_URL, DEMO_LIMITS, FREE_PHRASES, STUDENT_LIMITS } from "@/lib/auth";
 import { redis } from "@/lib/store";
 import { getRecs, publicRec } from "@/lib/recs";
 import { jsonError } from "@/lib/server";
@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   if (!r || who.role === "teacher") return NextResponse.json({ ...base, assigned: [], recs: [], progress: null });
 
   if (who.role === "demo") {
-    return NextResponse.json({ ...base, assigned: [], recs: [], progress: null, limits: DEMO_LIMITS, usage: await usage(who.id) });
+    return NextResponse.json({ ...base, assigned: [], recs: [], progress: null, limits: DEMO_LIMITS, usage: await usage(who.id), free: { used: await freeUsed(who), limit: FREE_PHRASES, contact: CONTACT_URL } });
   }
 
   const [assigned, recIds, progress] = await Promise.all([

@@ -43,8 +43,24 @@ export function setPasscode(v: string) {
   } catch {}
 }
 
+/** Anonymous id for this browser, so free visitors each get their own 5 phrases. */
+export function deviceId(): string {
+  try {
+    let id = localStorage.getItem("nf-device");
+    if (!id) {
+      id = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join("");
+      localStorage.setItem("nf-device", id);
+    }
+    return id;
+  } catch {
+    return "";
+  }
+}
+const authHeaders = () => ({ "x-passcode": getPasscode(), "x-device": deviceId() });
+const errKind = (e: unknown): "passcode" | "limit" | "server" => (e === "passcode" ? "passcode" : e === "limit" ? "limit" : "server");
+
 export class ApiError extends Error {
-  constructor(public kind: "passcode" | "server", message: string) {
+  constructor(public kind: "passcode" | "limit" | "server", message: string) {
     super(message);
   }
 }
@@ -52,12 +68,12 @@ export class ApiError extends Error {
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-passcode": getPasscode() },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new ApiError(data?.error === "passcode" ? "passcode" : "server", data?.message || `Запрос не прошёл (${res.status}).`);
+    throw new ApiError(errKind(data?.error), data?.message || `Запрос не прошёл (${res.status}).`);
   }
   return data as T;
 }
@@ -73,12 +89,13 @@ export type Me = {
   progress: unknown;
   limits?: Record<string, number>;
   usage?: Record<string, number>;
+  free?: { used: number; limit: number; contact: string };
 };
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, { ...init, headers: { ...(init?.headers ?? {}), "x-passcode": getPasscode() } });
+  const res = await fetch(path, { ...init, headers: { ...(init?.headers ?? {}), ...authHeaders() } });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(data?.error === "passcode" ? "passcode" : "server", data?.message || `Запрос не прошёл (${res.status}).`);
+  if (!res.ok) throw new ApiError(errKind(data?.error), data?.message || `Запрос не прошёл (${res.status}).`);
   return data as T;
 }
 
@@ -105,10 +122,10 @@ export const fetchWords = (sentence: string) => post<{ words: WordInfo[] }>("/ap
 export async function fetchScoreWords(take: Blob): Promise<{ text: string; words: WordTiming[] }> {
   const fd = new FormData();
   fd.append("file", take, "take.webm");
-  const res = await fetch("/api/score", { method: "POST", headers: { "x-passcode": getPasscode() }, body: fd });
+  const res = await fetch("/api/score", { method: "POST", headers: authHeaders(), body: fd });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new ApiError(data?.error === "passcode" ? "passcode" : "server", data?.message || `Запрос не прошёл (${res.status}).`);
+    throw new ApiError(errKind(data?.error), data?.message || `Запрос не прошёл (${res.status}).`);
   }
   return data;
 }

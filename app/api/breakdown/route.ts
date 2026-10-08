@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { breakdownPrompt } from "@/lib/prompts";
 import { askClaudeJSON, jsonError, MAX_INPUT_CHARS } from "@/lib/server";
-import { getWho, isResponse, useLimit } from "@/lib/auth";
+import { freePhraseGate, getWho, isResponse, useLimit } from "@/lib/auth";
 import { hash, redis } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -21,6 +21,10 @@ export async function POST(req: Request) {
   if (!text) return jsonError("Сначала вставь фразу.", 400);
   if (text.length > MAX_INPUT_CHARS) return jsonError(`Слишком длинно. Максимум ${MAX_INPUT_CHARS} символов.`, 400);
 
+  // Free visitors: 5 different phrases a day.
+  const gated = await freePhraseGate(who, text);
+  if (gated) return gated;
+
   // Same phrase → same answer, free.
   const key = `bd:${body.cyrillic ? 1 : 0}:${hash(text.toLowerCase())}`;
   const r = redis();
@@ -29,8 +33,10 @@ export async function POST(req: Request) {
     if (hit) return NextResponse.json(hit);
   }
 
-  const limited = await useLimit(who, "breakdown");
-  if (limited) return limited;
+  if (who.role !== "demo") {
+    const limited = await useLimit(who, "breakdown");
+    if (limited) return limited;
+  }
 
   try {
     const data = await askClaudeJSON<{ sentences: unknown[] }>(breakdownPrompt(text, !!body.cyrillic), 12000);

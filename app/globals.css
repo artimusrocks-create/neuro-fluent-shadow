@@ -617,3 +617,5 @@ body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
 .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (min-width: 760px) { .tiles { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px 40px; } .tile { width: 96px; } }
 @media (max-width: 759px) { .prompt .orb { display: none; } .prompt { padding-left: 6px; } .prompt input { font-size: 16px; } }
+.free-chip { margin: -6px 0 0; font-size: 13px; color: var(--lav-ink); background: var(--lav); border-radius: 999px; padding: 6px 14px; }
+.free-chip b { font-weight: 700; }

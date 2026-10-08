@@ -7,10 +7,12 @@ export type Student = { id: string; name: string; code: string; created: string;
 export type Who =
   | { role: "teacher"; id: "teacher"; name: string }
   | { role: "student"; id: string; name: string; student: Student }
-  | { role: "demo"; id: string; name: string };
+  | { role: "demo"; id: string; name: string; ip: string };
 
 export const STUDENT_LIMITS: Limits = { breakdown: 40, words: 20, speak: 300, score: 40 };
-export const DEMO_LIMITS: Limits = { breakdown: 5, words: 2, speak: 40, score: 3 };
+export const DEMO_LIMITS: Limits = { breakdown: 5, words: 10, speak: 150, score: 30 };
+export const FREE_PHRASES = 5;
+export const CONTACT_URL = process.env.CONTACT_URL || "https://t.me/rawmeatsalad";
 
 const deny = (message: string, status = 401) => NextResponse.json({ error: status === 401 ? "passcode" : "limit", message }, { status });
 
@@ -33,12 +35,14 @@ export async function getWho(req: Request): Promise<Who | NextResponse> {
     }
   }
 
-  if (code) return deny("Неверный код. Попроси у преподавателя личную ссылку.");
+  // A wrong or old code never locks anyone out: they simply continue as a free visitor.
 
   // No code at all
   if (r) {
     const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
-    return { role: "demo", id: `ip:${ip}`, name: "Гость" };
+    const dev = (req.headers.get("x-device") ?? "").toLowerCase();
+    const id = /^[a-f0-9]{16,40}$/.test(dev) ? `dev:${dev}` : `ip:${ip}`;
+    return { role: "demo", id, name: "Гость", ip };
   }
   if (teacherCode) return deny("Нужен пароль.");
   return { role: "teacher", id: "teacher", name: "Препод" }; // no passcode and no database: open app
@@ -83,4 +87,37 @@ export async function usage(id: string): Promise<Record<Kind, number>> {
   const vals = await r.mget<(number | null)[]>(...kinds.map((k) => `use:${id}:${dayKey()}:${k}`));
   kinds.forEach((k, i) => (out[k] = Number(vals[i] ?? 0)));
   return out;
+}
+
+/**
+ * Free visitors: 5 different phrases a day. Repeating a phrase they already opened is free.
+ * Also caps one network address at 40 phrases a day, so clearing the browser doesn't give unlimited use.
+ */
+export async function freePhraseGate(who: Who, text: string): Promise<NextResponse | null> {
+  if (who.role !== "demo") return null;
+  const r = redis();
+  if (!r) return null;
+  const day = dayKey();
+  const key = `free:${who.id}:${day}`;
+  const ipKey = `freeip:${who.ip}:${day}`;
+  const h = text.trim().toLowerCase();
+  if (await r.sismember(key, h)) return null;
+  const [mine, ipCount] = await Promise.all([r.scard(key), r.scard(ipKey)]);
+  if (mine >= FREE_PHRASES || ipCount >= 40) {
+    return NextResponse.json(
+      { error: "limit", message: `Бесплатно — ${FREE_PHRASES} фраз в день. Завтра будет ещё ${FREE_PHRASES}.`, contact: CONTACT_URL },
+      { status: 429 }
+    );
+  }
+  await r.sadd(key, h);
+  await r.sadd(ipKey, h);
+  await r.expire(key, 2 * 86400);
+  await r.expire(ipKey, 2 * 86400);
+  return null;
+}
+
+export async function freeUsed(who: Who): Promise<number> {
+  const r = redis();
+  if (!r || who.role !== "demo") return 0;
+  return await r.scard(`free:${who.id}:${dayKey()}`);
 }

@@ -57,10 +57,14 @@ export default function Page() {
   const [toasts, setToasts] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [dictating, setDictating] = useState(false);
+  const [limitOpen, setLimitOpen] = useState(false);
   const recRef = useRef<MediaRecorder | null>(null);
   const loadingRef = useRef<Set<string>>(new Set());
 
   // ---------- Who am I, progress sync ----------
+  const refreshFree = () => {
+    if (!me || me.role === "demo") loadMe();
+  };
   async function loadMe() {
     try {
       const m = await fetchMe();
@@ -124,6 +128,7 @@ export default function Page() {
       try {
         const d = await fetchBreakdown(it.text, settings.cyrillic);
         track("breakdowns");
+        refreshFree();
         setQueue((cur) => {
           if (!cur) return cur;
           const idx = cur.items.findIndex((x) => x.text === it.text && !x.s);
@@ -133,7 +138,7 @@ export default function Page() {
           return { ...cur, items };
         });
       } catch (e) {
-        if (e instanceof ApiError && e.kind === "passcode") setMenu(true);
+        if (e instanceof ApiError && e.kind === "limit") setLimitOpen(true);
         const msg = e instanceof Error ? e.message : "Не получилось загрузить фразу.";
         setQueue((cur) => (cur ? { ...cur, items: cur.items.map((x) => (x.text === it.text ? { ...x, err: msg } : x)) } : cur));
       } finally {
@@ -167,12 +172,13 @@ export default function Page() {
     try {
       const d = await fetchBreakdown(t, settings.cyrillic);
       track("breakdowns");
+      refreshFree();
       startQueue(
         d.sentences.map((s) => ({ text: s.text, s })),
         "Твой текст"
       );
     } catch (err) {
-      if (err instanceof ApiError && err.kind === "passcode") setMenu(true);
+      if (err instanceof ApiError && err.kind === "limit") setLimitOpen(true);
       setError(err instanceof Error ? err.message : "Не получилось. Попробуй ещё раз.");
     } finally {
       setBusy(false);
@@ -286,6 +292,11 @@ export default function Page() {
                 </p>
               )}
               {error && <p className="error-line">{error}</p>}
+              {me?.free && (
+                <p className="free-chip">
+                  Бесплатно сегодня: осталось <b>{Math.max(0, me.free.limit - me.free.used)}</b> из {me.free.limit} фраз
+                </p>
+              )}
               <button type="button" className="tip-line" onClick={() => setTip((tip + 1) % TIPS.length)}>
                 <b>Совет дня:</b> {TIPS[tip]}
               </button>
@@ -555,33 +566,24 @@ export default function Page() {
             </button>
           ))}
         </div>
-        <p className="sheet-sec">Доступ</p>
-        {me?.role === "demo" && (
-          <p className="tip-line" style={{ textAlign: "left" }}>
-            Демо: {me.limits?.breakdown ?? 5} своих фраз в день. Наборы — без ограничений.
-          </p>
-        )}
-        <form
-          className="prompt"
-          style={{ boxShadow: "none" }}
-          onSubmit={(e) => {
-            e.preventDefault();
-            setPasscode(code.trim());
-            setError("");
-            loadMe();
-            setMenu(false);
-          }}
-        >
-          <input aria-label="Код доступа" placeholder="Код от преподавателя" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" />
-          <button type="submit" className="send" aria-label="Сохранить код">
-            <ArrowUp size={20} />
-          </button>
-        </form>
         {me?.role === "teacher" && (
           <a className="wide-btn light" href="/teacher">
             Кабинет преподавателя
           </a>
         )}
+      </Sheet>
+
+      {/* Free limit reached */}
+      <Sheet open={limitOpen} onOpenChange={setLimitOpen} title="5 бесплатных фраз на сегодня закончились">
+        <p className="tip-line" style={{ textAlign: "left" }}>
+          Завтра будет ещё 5. А если хочешь заниматься без ограничений и с живым преподавателем — напиши Артёму.
+        </p>
+        <a className="wide-btn" href={me?.free?.contact || "https://t.me/rawmeatsalad"} target="_blank" rel="noopener noreferrer">
+          Написать в Telegram
+        </a>
+        <button type="button" className="wide-btn light" onClick={() => (setLimitOpen(false), setQueue(null))}>
+          Вернусь завтра
+        </button>
       </Sheet>
 
       {/* Practice */}
@@ -609,7 +611,7 @@ export default function Page() {
               onNext={() => setQueue((q) => (q ? { ...q, index: Math.min(q.items.length - 1, q.index + 1) } : q))}
               onClose={() => setQueue(null)}
               onRetry={() => setQueue((q) => (q ? { ...q, items: q.items.map((x, i) => (i === q.index ? { text: x.text } : x)) } : q))}
-              onPasscodeNeeded={() => setMenu(true)}
+              onPasscodeNeeded={() => {}}
             />
           </motion.div>
         )}
