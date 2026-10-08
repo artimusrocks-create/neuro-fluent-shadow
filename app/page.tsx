@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import Practice from "./Practice";
 import Sheet, { Switch } from "./ui/Sheet";
-import { ApiError, Me, Sentence, fetchBreakdown, fetchMe, fetchScoreWords, getPasscode, recAudioUrl, saveProgressRemote, setPasscode } from "@/lib/client";
+import { ApiError, Me, Sentence, fetchBreakdown, fetchMe, isBaked, fetchScoreWords, getPasscode, recAudioUrl, saveProgressRemote, setPasscode } from "@/lib/client";
 import { PACKS, Pack, packGradient, phraseOfTheDay } from "@/lib/packs";
 import { BADGES, getState, isDue, mergeRemote, missionProgress, onBadges, onChange, setSettings, streak, track, useProgress } from "@/lib/progress";
 import { DEFAULT_VOICE, VOICES } from "@/lib/voices";
@@ -151,8 +151,9 @@ export default function Page() {
   useEffect(() => {
     if (!queue) return;
     ensureLoaded(queue, queue.index);
-    // Prefetch the next phrase for people with a full account (demo has a small daily limit).
-    if (me && me.role !== "demo") ensureLoaded(queue, queue.index + 1);
+    // Prefetch the next phrase: always for baked pack phrases, live ones only for full accounts.
+    const next = queue.items[queue.index + 1];
+    if (next && (isBaked(next.text) || (me && me.role !== "demo"))) ensureLoaded(queue, queue.index + 1);
   }, [queue, ensureLoaded, me]);
 
   function startQueue(items: Item[], label: string, fromLibrary = false, index = 0) {

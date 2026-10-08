@@ -28,6 +28,23 @@ export type WordInfo = {
   collocations?: { en: string; ru: string }[];
 };
 
+// ---------- Baked (pre-generated) pack content ----------
+import BAKED from "./baked-index.json";
+import { clipKey, textKey } from "./bakekey";
+import { DEFAULT_VOICE } from "./voices";
+
+const bakedSet = { bd: new Set(BAKED.bd), wd: new Set(BAKED.wd), a: new Set(BAKED.a) };
+/** True when this phrase ships pre-generated with the app (no AI call, no free-limit cost). */
+export const isBaked = (text: string) => bakedSet.bd.has(textKey(text));
+async function getStatic<T>(url: string): Promise<T | null> {
+  try {
+    const res = await fetch(url);
+    return res.ok ? ((await res.json()) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
 // ---------- Passcode ----------
 const PASS_KEY = "nf-passcode";
 export function getPasscode(): string {
@@ -114,10 +131,23 @@ export const teacherDo = <T,>(body: Record<string, unknown>) =>
   call<T>("/api/teacher", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 /** Audio URL for a recording, with the code so the <audio> tag is allowed to load it. */
 export const recAudioUrl = (r: { audio: string }) => `${r.audio}&code=${encodeURIComponent(getPasscode())}`;
-export const fetchBreakdown = (text: string, cyrillic: boolean) =>
-  post<{ sentences: Sentence[] }>("/api/breakdown", { text, cyrillic });
+export async function fetchBreakdown(text: string, cyrillic: boolean): Promise<{ sentences: Sentence[] }> {
+  const k = textKey(text);
+  if (bakedSet.bd.has(k)) {
+    const hit = await getStatic<{ sentences: Sentence[] }>(`/baked/bd/${k}.json`);
+    if (hit) return hit;
+  }
+  return post<{ sentences: Sentence[] }>("/api/breakdown", { text, cyrillic });
+}
 
-export const fetchWords = (sentence: string) => post<{ words: WordInfo[] }>("/api/words", { sentence });
+export async function fetchWords(sentence: string): Promise<{ words: WordInfo[] }> {
+  const k = textKey(sentence);
+  if (bakedSet.wd.has(k)) {
+    const hit = await getStatic<{ words: WordInfo[] }>(`/baked/wd/${k}.json`);
+    if (hit) return hit;
+  }
+  return post<{ words: WordInfo[] }>("/api/words", { sentence });
+}
 
 export async function fetchScoreWords(take: Blob): Promise<{ text: string; words: WordTiming[] }> {
   const fd = new FormData();
@@ -135,11 +165,16 @@ export function fetchClip(text: string, speed: number, voice = ""): Promise<Clip
   const key = `${voice}|${speed}|${text}`;
   const hit = clipCache.get(key);
   if (hit) return hit;
-  const p = post<{ audio: string; words: WordTiming[] }>("/api/speak", { text, speed, voice }).then(({ audio, words }) => {
-    const bytes = Uint8Array.from(atob(audio), (c) => c.charCodeAt(0));
-    const url = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
-    return { url, words: words ?? [] };
-  });
+  const live = () =>
+    post<{ audio: string; words: WordTiming[] }>("/api/speak", { text, speed, voice }).then(({ audio, words }) => {
+      const bytes = Uint8Array.from(atob(audio), (c) => c.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
+      return { url, words: words ?? [] };
+    });
+  const bk = clipKey(text, speed, voice || DEFAULT_VOICE);
+  const p: Promise<Clip> = bakedSet.a.has(bk)
+    ? getStatic<WordTiming[]>(`/baked/a/${bk}.json`).then((words) => (words ? { url: `/baked/a/${bk}.mp3`, words } : live()))
+    : live();
   clipCache.set(key, p);
   p.catch(() => clipCache.delete(key));
   return p;
