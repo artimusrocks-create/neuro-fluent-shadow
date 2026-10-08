@@ -84,6 +84,9 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, f
   const [reel, setReel] = useState<{ p: number; url?: string; ext?: string } | null>(null);
 
   const [wordsOpen, setWordsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [details, setDetails] = useState(false);
+  const [scoreMore, setScoreMore] = useState(false);
   const [wordData, setWordData] = useState<WordInfo[] | null>(null);
   const [wordsLoading, setWordsLoading] = useState(false);
   const [openWord, setOpenWord] = useState<number | null>(null);
@@ -323,81 +326,110 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, f
 
   const cyr = Object.entries(s.cyrillic ?? {});
   const verdictClass = (v: string) => (v === "ok" ? "v-ok" : v === "missed" ? "v-miss" : "v-warn");
+  const nextSpeed = () => setSpeed(SPEEDS[(SPEEDS.findIndex((x) => x.id === speed.id) + 1) % SPEEDS.length]);
+  const menuItem = (label: string, onClick: () => void, disabled = false) => (
+    <button
+      type="button"
+      className="menu-item"
+      disabled={disabled}
+      onClick={() => {
+        setMenuOpen(false);
+        onClick();
+      }}
+    >
+      {label}
+    </button>
+  );
 
   return (
     <article className="card">
-      <div className="card-head">
+      <div className="card-top">
         {total > 1 && <span className="num">{index + 1}</span>}
-        <span className="eyebrow">{fromLibrary ? "Повторение по расписанию" : "Повторяй за мной"}</span>
-        <button type="button" className={`star ${saved ? "on" : ""}`} onClick={() => toggleSave(s)} aria-pressed={saved}>
-          {saved ? "★ В моих фразах" : "☆ Сохранить"}
-        </button>
-      </div>
-
-      {/* Karaoke line */}
-      <p className={`karaoke ${veiled ? "veiled" : ""}`} aria-hidden={veiled}>
-        {words.map((w, i) => {
-          const state = !range ? "" : i < range[0] || i > range[1] ? "dim" : i === active ? "now" : i < active ? "done" : "";
-          return (
-            <span key={i} className={`kw ${stressed[i] ? "loud" : "soft"} ${state}`}>
-              {w}
-            </span>
-          );
-        })}
-      </p>
-
-      {/* Player */}
-      <div className="player">
-        <div className="speeds" role="group" aria-label="Скорость">
-          {SPEEDS.map((sp) => (
-            <button key={sp.id} type="button" className={`seg ${speed.id === sp.id ? "on" : ""}`} onClick={() => setSpeed(sp)} aria-pressed={speed.id === sp.id}>
-              {sp.label}
-            </button>
-          ))}
-        </div>
-        <div className="actions">
-          <button type="button" className={`act primary ${busy === "play" ? "running" : ""}`} onClick={play}>
-            {busy === "play" ? "■ Стоп" : "▶ Слушать"}
+        <p className={`karaoke ${veiled ? "veiled" : ""}`} aria-hidden={veiled}>
+          {words.map((w, i) => {
+            const state = !range ? "" : i < range[0] || i > range[1] ? "dim" : i === active ? "now" : i < active ? "done" : "";
+            return (
+              <span key={i} className={`kw ${stressed[i] ? "loud" : "soft"} ${state}`}>
+                {w}
+              </span>
+            );
+          })}
+        </p>
+        <div className="menu-wrap">
+          <button type="button" className="dots-btn" aria-label="Ещё" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
+            ⋯
           </button>
-          <button type="button" className={`act ${busy === "echo" ? "running" : ""}`} onClick={echo} title="Сказал, пауза, твоя очередь. Три круга.">
-            {busy === "echo" ? "■ Стоп" : "🔁 Эхо ×3"}
-          </button>
-          <button type="button" className={`act ${busy === "build" ? "running" : ""}`} onClick={buildUp} title="С конца фразы к началу, по кусочку. Так учат актёров.">
-            {busy === "build" ? "■ Стоп" : "🧱 По кусочкам"}
-          </button>
-          <button type="button" className={`act ${recording ? "rec" : ""}`} onClick={toggleRecord}>
-            {recording ? "⏺ Остановить запись" : "🎤 Записать себя"}
-          </button>
-          {myTake && (
+          {menuOpen && (
             <>
-              <button type="button" className={`act ${busy === "compare" ? "running" : ""}`} onClick={compare}>
-                {busy === "compare" ? "■ Стоп" : "🆚 Сравнить"}
-              </button>
-              <button type="button" className="act score-btn" onClick={rate} disabled={scoring}>
-                {scoring ? "Слушаем тебя…" : "🧪 Оценить акцент"}
-              </button>
-              {canSend && (
-                <button type="button" className="act send-btn" onClick={send} disabled={sendState !== "idle"}>
-                  {sendState === "sent" ? "✓ Отправлено преподу" : sendState === "sending" ? "Отправляем…" : "📤 Отправить преподу"}
-                </button>
-              )}
+              <button type="button" className="menu-scrim" aria-label="Закрыть меню" onClick={() => setMenuOpen(false)} />
+              <div className="menu" role="menu">
+                {menuItem(details ? "🔎 Скрыть разбор" : "🔎 Полный разбор", () => setDetails(!details))}
+                {menuItem(wordsOpen ? "📖 Скрыть слова" : "📖 Каждое слово", toggleWords)}
+                {menuItem("🧱 По кусочкам", buildUp)}
+                {menuItem(saved ? "★ Убрать из моих фраз" : "☆ Сохранить в мои фразы", () => toggleSave(s))}
+                {menuItem(reel && !reel.url ? `🎬 Снимаем… ${Math.round(reel.p * 100)}%` : "🎬 Видео для Reels", makeReel, !!reel && !reel.url)}
+                {canSend && myTake && menuItem(sendState === "sent" ? "✓ Отправлено преподу" : "📤 Отправить преподу", send, sendState !== "idle")}
+              </div>
             </>
           )}
         </div>
-        {(status || turn > 0) && (
-          <div className="status-line">
-            <span>{status}</span>
-            {turn > 0 && (
-              <span className="turnbar">
-                <i style={{ width: `${turn * 100}%` }} />
-              </span>
-            )}
-          </div>
-        )}
-        {error && <div className="error">{error}</div>}
       </div>
 
-      {/* Score */}
+      {!veiled && (
+        <div className="fast-line">
+          {fastParts.map((p, i) => {
+            if (!p.blob) return <span key={i}>{p.text}</span>;
+            const b = s.blobs.find((x) => x.blob === p.blob);
+            return (
+              <button key={i} type="button" className="blobmark" title={`Послушать «${b?.written}»`} onClick={() => b && playPiece(b.written, `blob${i}`)}>
+                {p.text}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="controls-row">
+        <button type="button" className={`act primary ${busy === "play" ? "running" : ""}`} onClick={play}>
+          {busy === "play" ? "■ Стоп" : "▶ Слушать"}
+        </button>
+        <button type="button" className={`act ${busy === "echo" ? "running" : ""}`} onClick={echo} title="Сказал, пауза, твоя очередь. Три круга.">
+          {busy === "echo" ? "■ Стоп" : "🔁 Эхо"}
+        </button>
+        {busy === "build" && (
+          <button type="button" className="act running" onClick={buildUp}>
+            ■ Стоп
+          </button>
+        )}
+        <button type="button" className={`act ${recording ? "rec" : ""}`} onClick={toggleRecord}>
+          {recording ? "⏺ Стоп" : "🎤"}
+        </button>
+        {myTake && !recording && (
+          <>
+            <button type="button" className={`act ${busy === "compare" ? "running" : ""}`} onClick={compare} title="Модель, потом ты">
+              {busy === "compare" ? "■" : "🆚"}
+            </button>
+            <button type="button" className="act score-btn" onClick={rate} disabled={scoring}>
+              {scoring ? "…" : "🧪 Оценка"}
+            </button>
+          </>
+        )}
+        <button type="button" className="speed-btn" onClick={nextSpeed} title="Скорость">
+          {speed.label}
+        </button>
+      </div>
+      {(status || turn > 0) && (
+        <div className="status-line">
+          <span>{status}</span>
+          {turn > 0 && (
+            <span className="turnbar">
+              <i style={{ width: `${turn * 100}%` }} />
+            </span>
+          )}
+        </div>
+      )}
+      {error && <div className="error">{error}</div>}
+
       {score && (
         <div className="score">
           <div className="score-top">
@@ -406,36 +438,43 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, f
               <span>/100</span>
             </div>
             <div className="score-main">
+              <div className="score-verdict">{score.verdict}</div>
+              <div className="score-words">
+                {score.words.map((w, i) => (
+                  <span key={i} className={`sw ${verdictClass(w.verdict)}`}>
+                    {w.word}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+          <button type="button" className="linkish" onClick={() => setScoreMore(!scoreMore)}>
+            {scoreMore ? "Скрыть подробности" : "Подробнее"}
+          </button>
+          {scoreMore && (
+            <>
               <div className="meter-label">
                 Русский акцент: <b>{score.accent}%</b>
               </div>
               <div className="meter">
                 <i style={{ width: `${score.accent}%` }} />
               </div>
-              <div className="score-verdict">{score.verdict}</div>
-            </div>
-          </div>
-          <div className="subscores">
-            <span>Понятность {score.intelligibility}</span>
-            <span>Ритм {score.rhythm}</span>
-            <span>Темп {score.pace}</span>
-          </div>
-          <div className="score-words">
-            {score.words.map((w, i) => (
-              <span key={i} className={`sw ${verdictClass(w.verdict)}`} title={w.verdict === "missed" ? "Не расслышали" : w.verdict === "short" ? "Ударное проглочено" : w.verdict === "heavy" ? "Слишком старательно" : "Чисто"}>
-                {w.word}
-              </span>
-            ))}
-          </div>
-          <ul className="advice">
-            {score.advice.map((a, i) => (
-              <li key={i}>{a}</li>
-            ))}
-          </ul>
-          <div className="heard">
-            Американское ухо услышало: <i>«{score.heard || "…"}»</i>
-          </div>
-          {modelUrl && myTake && <Waveform modelUrl={modelUrl} userUrl={myTake.url} />}
+              <div className="subscores">
+                <span>Понятность {score.intelligibility}</span>
+                <span>Ритм {score.rhythm}</span>
+                <span>Темп {score.pace}</span>
+              </div>
+              <ul className="advice">
+                {score.advice.map((a, i) => (
+                  <li key={i}>{a}</li>
+                ))}
+              </ul>
+              <div className="heard">
+                Американское ухо услышало: <i>«{score.heard || "…"}»</i>
+              </div>
+              {modelUrl && myTake && <Waveform modelUrl={modelUrl} userUrl={myTake.url} />}
+            </>
+          )}
         </div>
       )}
 
@@ -457,17 +496,24 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, f
         </div>
       )}
 
-      {veiled ? (
-        <div className="veil-box">
-          <p>🙈 Режим «Сначала на слух». Послушай 2–3 раза и попробуй повторить, не подглядывая.</p>
-          <button type="button" className="go small" onClick={() => setRevealed(true)}>
-            👀 Показать текст и разбор
-          </button>
-        </div>
-      ) : (
-        <>
-          {s.shadow_tip && <div className="shadow-tip">🎯 {s.shadow_tip}</div>}
+      {veiled && (
+        <button type="button" className="linkish reveal" onClick={() => setRevealed(true)}>
+          🙈 Сначала послушай. Потом — 👀 показать текст
+        </button>
+      )}
 
+      {reel?.url && (
+        <div className="reel-done">
+          Видео скачалось.{" "}
+          <a href={reel.url} download={`neuro-fluent.${reel.ext}`}>
+            Ещё раз
+          </a>
+        </div>
+      )}
+
+      {details && !veiled && (
+        <div className="details">
+          {s.shadow_tip && <div className="shadow-tip">🎯 {s.shadow_tip}</div>}
           <div className="row">
             <span className="label l-chunks">Куски</span>
             <div className="chunks">
@@ -478,7 +524,6 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, f
               ))}
             </div>
           </div>
-
           <div className="row">
             <span className="label l-clear">Чётко</span>
             <div className="clear-text">
@@ -487,22 +532,6 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, f
               ))}
             </div>
           </div>
-
-          <div className="row">
-            <span className="label l-fast">Быстро</span>
-            <div className="fast-text">
-              {fastParts.map((p, i) => {
-                if (!p.blob) return <span key={i}>{p.text}</span>;
-                const b = s.blobs.find((x) => x.blob === p.blob);
-                return (
-                  <button key={i} type="button" className="blobmark" title={`Послушать «${b?.written}»`} onClick={() => b && playPiece(b.written, `blob${i}`)}>
-                    {p.text}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           <div className="row">
             <span className="label l-rhythm">Ритм</span>
             <div className="beats">
@@ -518,7 +547,6 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, f
               ))}
             </div>
           </div>
-
           {s.blobs?.length > 0 && (
             <div className="row">
               <span className="label l-blobs">Склейки</span>
@@ -537,7 +565,6 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, f
               </ul>
             </div>
           )}
-
           {showCyrillic && cyr.length > 0 && (
             <div className="row">
               <span className="label l-cyr">Кириллица</span>
@@ -550,9 +577,7 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, f
               </div>
             </div>
           )}
-
           {showTip && s.ru_tip && <div className="tip">🇷🇺 {s.ru_tip}</div>}
-
           {s.flags && s.flags.length > 0 && (
             <div className="flags">
               {s.flags.map((f, i) => (
@@ -562,76 +587,58 @@ export default function SentenceCard({ s, index, total, showCyrillic, showTip, f
               ))}
             </div>
           )}
+        </div>
+      )}
 
-          <div className="card-tools">
-            <button type="button" className="words-toggle" onClick={toggleWords} aria-expanded={wordsOpen}>
-              {wordsOpen ? "▾" : "▸"} 📖 Каждое слово: перевод, нюансы, этимология
-            </button>
-            <button type="button" className="words-toggle" onClick={makeReel} disabled={!!reel && !reel.url}>
-              {reel && !reel.url ? `🎬 Снимаем… ${Math.round(reel.p * 100)}%` : "🎬 Видео для Reels"}
-            </button>
-          </div>
-          {reel?.url && (
-            <div className="reel-done">
-              Видео готово и скачалось.{" "}
-              <a href={reel.url} download={`neuro-fluent.${reel.ext}`}>
-                Скачать ещё раз
-              </a>
-              {reel.ext === "webm" && <span> · Если Instagram капризничает, открой страницу в Chrome на телефоне — там будет mp4.</span>}
-            </div>
-          )}
-
-          {wordsOpen && (
-            <div className="words">
-              {wordsLoading && <div className="loading">Разбираем каждое слово. Даже «the». Особенно «the».</div>}
-              {wordData?.map((w, i) =>
-                w.type === "function" ? (
-                  <div key={i} className="w-func">
-                    <span className="w-word">{w.word}</span>
-                    <span className="w-sound">{w.sound}</span>
-                    <span className="w-ru">{w.ru}</span>
-                    <span className="w-note">{w.note}</span>
-                  </div>
-                ) : (
-                  <div key={i} className={`w-content ${openWord === i ? "open" : ""}`}>
-                    <button type="button" className="w-head" onClick={() => setOpenWord(openWord === i ? null : i)} aria-expanded={openWord === i}>
-                      <span className="w-word big">{w.word}</span>
-                      <span className="w-sound">{w.sound}</span>
-                      <span className="w-ru">{w.ru}</span>
-                      <span className="w-caret">{openWord === i ? "−" : "+"}</span>
+      {wordsOpen && (
+        <div className="words">
+          {wordsLoading && <div className="loading">Разбираем каждое слово. Даже «the». Особенно «the».</div>}
+          {wordData?.map((w, i) =>
+            w.type === "function" ? (
+              <div key={i} className="w-func">
+                <span className="w-word">{w.word}</span>
+                <span className="w-sound">{w.sound}</span>
+                <span className="w-ru">{w.ru}</span>
+                <span className="w-note">{w.note}</span>
+              </div>
+            ) : (
+              <div key={i} className={`w-content ${openWord === i ? "open" : ""}`}>
+                <button type="button" className="w-head" onClick={() => setOpenWord(openWord === i ? null : i)} aria-expanded={openWord === i}>
+                  <span className="w-word big">{w.word}</span>
+                  <span className="w-sound">{w.sound}</span>
+                  <span className="w-ru">{w.ru}</span>
+                  <span className="w-caret">{openWord === i ? "−" : "+"}</span>
+                </button>
+                {openWord === i && (
+                  <div className="w-body">
+                    <button type="button" className="mini-play" onClick={() => playPiece(w.word, `word${i}`, SPEEDS[2])} aria-label={`Послушать ${w.word}`}>
+                      ▶
                     </button>
-                    {openWord === i && (
-                      <div className="w-body">
-                        <button type="button" className="mini-play" onClick={() => playPiece(w.word, `word${i}`, SPEEDS[2])} aria-label={`Послушать ${w.word}`}>
-                          ▶
-                        </button>
-                        {w.nuance && (
-                          <p>
-                            <b>Нюанс:</b> {w.nuance}
-                          </p>
-                        )}
-                        {w.etymology && (
-                          <p>
-                            <b>Этимология:</b> {w.etymology} {w.etymology_unsure && <span className="unsure">⚠ проверить</span>}
-                          </p>
-                        )}
-                        {w.collocations && w.collocations.length > 0 && (
-                          <ul className="collos">
-                            {w.collocations.map((c, j) => (
-                              <li key={j}>
-                                <span className="en">{c.en}</span> <span className="ru">— {c.ru}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
+                    {w.nuance && (
+                      <p>
+                        <b>Нюанс:</b> {w.nuance}
+                      </p>
+                    )}
+                    {w.etymology && (
+                      <p>
+                        <b>Этимология:</b> {w.etymology} {w.etymology_unsure && <span className="unsure">⚠ проверить</span>}
+                      </p>
+                    )}
+                    {w.collocations && w.collocations.length > 0 && (
+                      <ul className="collos">
+                        {w.collocations.map((c, j) => (
+                          <li key={j}>
+                            <span className="en">{c.en}</span> <span className="ru">— {c.ru}</span>
+                          </li>
+                        ))}
+                      </ul>
                     )}
                   </div>
-                )
-              )}
-            </div>
+                )}
+              </div>
+            )
           )}
-        </>
+        </div>
       )}
     </article>
   );

@@ -67,6 +67,7 @@ export default function Page() {
   const [libOpen, setLibOpen] = useState<LibItem | null>(null);
   const [toasts, setToasts] = useState<string[]>([]);
   const [me, setMe] = useState<Me | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const passRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -78,7 +79,7 @@ export default function Page() {
     } catch (e) {
       if (e instanceof ApiError && e.kind === "passcode") {
         setMe(null);
-        setError("Код не подошёл. Попроси у препода свою личную ссылку.");
+        if (getPasscode()) setError("Код не подошёл. Попроси у препода свою личную ссылку.");
       }
     }
   }
@@ -176,66 +177,84 @@ export default function Page() {
   const due = progress.library.filter(isDue);
   const sortedLib = [...progress.library].sort((a, b) => (isDue(a) === isDue(b) ? a.due.localeCompare(b.due) : isDue(a) ? -1 : 1));
 
+  const feedbackCount = me?.recs.filter((r) => r.feedback).length ?? 0;
+  const attention = due.length + (me?.role === "student" ? feedbackCount : 0);
+  const go = (v: View) => {
+    setMenuOpen(false);
+    setView(v);
+    setLibOpen(null);
+    if (v === "teacher") loadMe();
+    window.scrollTo({ top: 0 });
+  };
+  const titles: Record<View, string> = { main: "", packs: "📦 Наборы фраз", library: "⭐ Мои фразы", badges: "🏅 Прогресс", teacher: "📌 От препода" };
+
   return (
-    <main className="wrap">
-      <header>
-        <div className="topline">
-          <span className="brand">Neuro-Fluent · Шэдоуинг</span>
-          <button type="button" className="linkish" onClick={askPasscode}>
-            🔑 Пароль
-          </button>
-        </div>
-        <h1>
-          Хватит звучать как <span className="hl">учебник 2007 года</span>
-        </h1>
-        <p className="sub">
-          Вставь фразу, которую повторяешь за носителем. Покажем, почему американец говорит не «вот ар ю гоинг ту ду», а «уачагана», и дадим
-          повторить за ним, пока не заговоришь так же.
-        </p>
-        <div className="quip">
-          <span>{QUIPS[quip]}</span>
-          <button type="button" className="quip-next" onClick={() => setQuip((quip + 1) % QUIPS.length)} aria-label="Следующая правда">
-            ↻
-          </button>
+    <main className="wrap slim">
+      <header className="bar">
+        <button type="button" className="brand-btn" onClick={() => go("main")}>
+          Neuro-Fluent
+        </button>
+        <div className="bar-right">
+          {mounted && st > 0 && <span className="mini-streak">🔥 {st}</span>}
+          <div className="menu-wrap">
+            <button type="button" className="dots-btn" aria-label="Меню" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
+              ⋯{mounted && attention > 0 && <span className="dot-badge" />}
+            </button>
+            {menuOpen && (
+              <>
+                <button type="button" className="menu-scrim" aria-label="Закрыть меню" onClick={() => setMenuOpen(false)} />
+                <div className="menu big" role="menu">
+                  {me?.role === "student" && <div className="menu-note">Привет, {me.name} 👋</div>}
+                  <button type="button" className="menu-item" onClick={() => (setMenuOpen(false), pick(potd.text))}>
+                    📅 Фраза дня
+                  </button>
+                  <button type="button" className="menu-item" onClick={() => go("packs")}>
+                    📦 Наборы фраз
+                  </button>
+                  <button type="button" className="menu-item" onClick={() => go("library")}>
+                    ⭐ Мои фразы{progress.library.length ? ` · ${progress.library.length}` : ""}
+                    {due.length > 0 && <span className="due-badge">{due.length}</span>}
+                  </button>
+                  {me?.role === "student" && (
+                    <button type="button" className="menu-item" onClick={() => go("teacher")}>
+                      📌 От препода{feedbackCount > 0 && <span className="due-badge">{feedbackCount}</span>}
+                    </button>
+                  )}
+                  <button type="button" className="menu-item" onClick={() => go("badges")}>
+                    🏅 Прогресс и ачивки
+                  </button>
+                  <div className="menu-sep" />
+                  <label className="menu-toggle">
+                    <input type="checkbox" checked={progress.settings.hide} onChange={(e) => setSettings({ hide: e.target.checked })} /> 🙈 Сначала на слух
+                  </label>
+                  <label className="menu-toggle">
+                    <input type="checkbox" checked={cyrillic} onChange={(e) => setCyrillic(e.target.checked)} /> Кириллица (костыль)
+                  </label>
+                  <label className="menu-toggle">
+                    <input type="checkbox" checked={ruTip} onChange={(e) => setRuTip(e.target.checked)} /> Советы для русских
+                  </label>
+                  <label className="menu-toggle col">
+                    <span>
+                      Пауза в «Эхо» ×{progress.settings.gap.toFixed(1)}
+                    </span>
+                    <input type="range" min={0.8} max={2.5} step={0.1} value={progress.settings.gap} onChange={(e) => setSettings({ gap: Number(e.target.value) })} />
+                  </label>
+                  <div className="menu-sep" />
+                  {me?.role === "demo" && <div className="menu-note">Демо: {me.limits?.breakdown ?? 5} своих фраз в день. Полный доступ — по ссылке от препода.</div>}
+                  {me?.role === "teacher" && (
+                    <a className="menu-item" href="/teacher">
+                      🧑‍🏫 Кабинет препода
+                    </a>
+                  )}
+                  <button type="button" className="menu-item" onClick={() => (setMenuOpen(false), askPasscode())}>
+                    🔑 Ввести код
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
-
-      {mounted && me && (
-        <div className={`whoami role-${me.role}`}>
-          {me.role === "demo" && (
-            <span>
-              🎟 Демо-режим: {me.limits?.breakdown ?? 5} своих фраз в день, наборы фраз без ограничений. Полный доступ — по личной ссылке от препода.
-            </span>
-          )}
-          {me.role === "student" && (
-            <span>
-              Привет, {me.name} 👋 {me.assigned.length ? `Препод задал тебе фраз: ${me.assigned.length}.` : ""}
-            </span>
-          )}
-          {me.role === "teacher" && (
-            <span>
-              Ты в режиме препода. <a href="/teacher">🧑‍🏫 Открыть кабинет</a>
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Progress strip */}
-      {mounted && (
-        <button type="button" className="progress-strip" onClick={() => setView("badges")}>
-          <span className="ps-streak">🔥 {st} {st === 1 ? "день" : st >= 2 && st <= 4 ? "дня" : "дней"} подряд</span>
-          <span className="ps-mission">
-            Миссия дня{" "}
-            {mission.parts.map((p, i) => (
-              <i key={i} className={p.done >= p.of ? "on" : ""} title={`${p.label}: ${p.done}/${p.of}`} />
-            ))}
-            {mission.complete && " ✅"}
-          </span>
-          <span className="ps-badges">
-            🏅 {progress.badges.length}/{BADGES.length}
-          </span>
-        </button>
-      )}
 
       {needPass && (
         <form
@@ -248,106 +267,78 @@ export default function Page() {
             loadMe();
           }}
         >
-          <label htmlFor="pass">Пароль</label>
-          <input id="pass" ref={passRef} value={pass} onChange={(e) => setPass(e.target.value)} placeholder="Спроси у препода" autoComplete="off" />
+          <input id="pass" ref={passRef} value={pass} onChange={(e) => setPass(e.target.value)} placeholder="Код от препода" autoComplete="off" aria-label="Код" />
           <button type="submit" className="go small">
-            Сохранить
+            OK
           </button>
         </form>
       )}
 
-      <form className="box" onSubmit={submit}>
-        <textarea
-          id="input"
-          ref={inputRef}
-          aria-label="Фраза для шэдоуинга"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
-          }}
-          placeholder="Вставь фразу. Или целый кусок транскрипта с YouTube — разобью на предложения."
-        />
-        <div className="controls">
-          <div className="toggles">
-            <label className="chip-toggle">
-              <input type="checkbox" checked={cyrillic} onChange={(e) => setCyrillic(e.target.checked)} /> Кириллица (костыль)
-            </label>
-            <label className="chip-toggle">
-              <input type="checkbox" checked={ruTip} onChange={(e) => setRuTip(e.target.checked)} /> Советы для русских
-            </label>
-            {mounted && (
-              <label className="chip-toggle">
-                <input type="checkbox" checked={progress.settings.hide} onChange={(e) => setSettings({ hide: e.target.checked })} /> 🙈 Сначала на слух
-              </label>
-            )}
-          </div>
-          <button type="submit" className="go" disabled={loading}>
-            {loading ? "Разбираю…" : "Разобрать"} <kbd>Ctrl+↵</kbd>
+      {view !== "main" && (
+        <div className="view-head">
+          <button type="button" className="linkish" onClick={() => go("main")}>
+            ← Назад
           </button>
-        </div>
-        {mounted && (
-          <div className="gap-row">
-            <label htmlFor="gap">Пауза на повтор в «Эхо»</label>
-            <input id="gap" type="range" min={0.8} max={2.5} step={0.1} value={progress.settings.gap} onChange={(e) => setSettings({ gap: Number(e.target.value) })} />
-            <span>×{progress.settings.gap.toFixed(1)}</span>
-          </div>
-        )}
-      </form>
-
-      {/* Tabs */}
-      <nav className="tabs" aria-label="Разделы">
-        <button type="button" className={view === "main" ? "on" : ""} onClick={() => setView("main")}>
-          🎧 Разбор
-        </button>
-        <button type="button" className={view === "packs" ? "on" : ""} onClick={() => setView("packs")}>
-          📦 Наборы фраз
-        </button>
-        <button type="button" className={view === "library" ? "on" : ""} onClick={() => (setView("library"), setLibOpen(null))}>
-          ⭐ Мои фразы{mounted && progress.library.length ? ` · ${progress.library.length}` : ""}
-          {mounted && due.length > 0 && <span className="due-badge">{due.length}</span>}
-        </button>
-        {me?.role === "student" && (
-          <button type="button" className={view === "teacher" ? "on" : ""} onClick={() => (setView("teacher"), loadMe())}>
-            📌 От препода
-            {me.recs.some((r) => r.feedback) && <span className="due-badge">{me.recs.filter((r) => r.feedback).length}</span>}
-          </button>
-        )}
-        <button type="button" className={view === "badges" ? "on" : ""} onClick={() => setView("badges")}>
-          🏅 Достижения
-        </button>
-      </nav>
-
-      {loading && (
-        <div className="status">
-          <span className="dots">
-            <i />
-            <i />
-            <i />
-          </span>{" "}
-          {loadingLine}
+          <h2>{titles[view]}</h2>
         </div>
       )}
-      {error && <div className="status error">{error}</div>}
 
       {view === "main" && (
-        <section className="results">
-          {isExample && (
-            <div className="potd">
-              <div>
-                <span className="potd-label">📅 Фраза дня · {potd.pack.title}</span>
-                <p>{potd.text}</p>
-              </div>
-              <button type="button" className="go small" onClick={() => pick(potd.text)}>
-                Разобрать
-              </button>
+        <>
+          <section className="hero">
+            <h1>
+              Хватит звучать как <span className="hl">учебник 2007 года</span>
+            </h1>
+            <button type="button" className="quip-line" onClick={() => setQuip((quip + 1) % QUIPS.length)} title="Ещё">
+              {QUIPS[quip]}
+            </button>
+          </section>
+
+          <form className="box" onSubmit={submit}>
+            <textarea
+              id="input"
+              ref={inputRef}
+              aria-label="Фраза для шэдоуинга"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
+              }}
+              placeholder="Вставь фразу на английском"
+            />
+            <button type="submit" className="go" disabled={loading}>
+              {loading ? "Разбираю…" : "Разобрать"}
+            </button>
+          </form>
+
+          {loading && (
+            <div className="status">
+              <span className="dots">
+                <i />
+                <i />
+                <i />
+              </span>{" "}
+              {loadingLine}
             </div>
           )}
-          {isExample && <div className="example-tag">Пример. Жми ▶ и слушай, потом вставь свою фразу</div>}
-          {sentences.map((s, i) => (
-            <SentenceCard key={`${s.text}-${i}`} s={s} index={i} total={sentences.length} showCyrillic={cyrillic} showTip={ruTip} canSend={me?.role === "student"} onPasscodeNeeded={askPasscode} />
-          ))}
-        </section>
+          {error && <div className="status error">{error}</div>}
+
+          <section className="results">
+            {sentences.map((s, i) => (
+              <SentenceCard
+                key={`${s.text}-${i}`}
+                s={s}
+                index={i}
+                total={sentences.length}
+                showCyrillic={cyrillic}
+                showTip={ruTip}
+                canSend={me?.role === "student"}
+                onPasscodeNeeded={askPasscode}
+              />
+            ))}
+            {isExample && <div className="example-tag">Это пример. Жми ▶ и слушай.</div>}
+          </section>
+        </>
       )}
 
       {view === "packs" && (
@@ -357,7 +348,7 @@ export default function Page() {
               <div className="pack-head">
                 <span className="pack-icon">{p.icon}</span>
                 <div>
-                  <h2>{p.title}</h2>
+                  <h3>{p.title}</h3>
                   <p>{p.blurb}</p>
                 </div>
               </div>
@@ -378,29 +369,20 @@ export default function Page() {
       {view === "library" && mounted && (
         <section className="results">
           {libOpen ? (
-            <>
-              <button type="button" className="linkish back" onClick={() => setLibOpen(null)}>
-                ← Все мои фразы
-              </button>
-              <SentenceCard key={libOpen.id} s={libOpen.s} index={0} total={1} showCyrillic={cyrillic} showTip={ruTip} fromLibrary canSend={me?.role === "student"} onPasscodeNeeded={askPasscode} />
-            </>
+            <SentenceCard key={libOpen.id} s={libOpen.s} index={0} total={1} showCyrillic={cyrillic} showTip={ruTip} fromLibrary canSend={me?.role === "student"} onPasscodeNeeded={askPasscode} />
           ) : progress.library.length === 0 ? (
             <div className="empty">
-              <p>Тут пока пусто. Жми «☆ Сохранить» на любой фразе, и она будет возвращаться к тебе по расписанию: через 1, 3, 7, 14 и 30 дней.</p>
-              <p className="muted">Так работает интервальное повторение. Мозг лучше всего запоминает то, что почти успел забыть.</p>
+              <p>Пусто. На любой фразе жми ⋯ → «Сохранить», и она будет возвращаться через 1, 3, 7, 14 и 30 дней.</p>
             </div>
           ) : (
             <>
-              <div className="lib-summary">
-                {due.length ? `Сегодня повторить: ${due.length}. Начни сверху.` : "На сегодня всё повторено. Красавчик."}
-              </div>
+              <div className="lib-summary">{due.length ? `Повторить сегодня: ${due.length}` : "На сегодня всё повторено."}</div>
               <ul className="lib-list">
                 {sortedLib.map((x) => (
                   <li key={x.id}>
                     <button type="button" onClick={() => setLibOpen(x)}>
                       <span className="lib-text">{x.s.text}</span>
                       <span className={`lib-due ${isDue(x) ? "now" : ""}`}>{isDue(x) ? "Повторить" : `с ${x.due.split("-").reverse().slice(0, 2).join(".")}`}</span>
-                      <span className="lib-box">{"●".repeat(x.box) + "○".repeat(5 - x.box)}</span>
                     </button>
                   </li>
                 ))}
@@ -412,34 +394,22 @@ export default function Page() {
 
       {view === "teacher" && me?.role === "student" && (
         <section className="results">
-          <div className="pack">
-            <div className="pack-head">
-              <span className="pack-icon">📌</span>
-              <div>
-                <h2>Задано</h2>
-                <p>{me.assigned.length ? "Тапни фразу, разбери, повтори, запиши и отправь." : "Пока ничего не задано. Отдыхай, но недолго."}</p>
-              </div>
+          {me.assigned.length > 0 ? (
+            <ul className="lib-list">
+              {me.assigned.map((ph) => (
+                <li key={ph}>
+                  <button type="button" onClick={() => pick(ph)}>
+                    <span className="lib-text">{ph}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="empty">
+              <p>Пока ничего не задано. Отдыхай, но недолго.</p>
             </div>
-            {me.assigned.length > 0 && (
-              <ul>
-                {me.assigned.map((ph) => (
-                  <li key={ph}>
-                    <button type="button" onClick={() => pick(ph)}>
-                      {ph}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div className="pack">
-            <div className="pack-head">
-              <span className="pack-icon">📤</span>
-              <div>
-                <h2>Мои записи</h2>
-                <p>{me.recs.length ? "Что ты отправил и что ответил препод." : "Запиши себя на любой фразе и жми «📤 Отправить преподу»."}</p>
-              </div>
-            </div>
+          )}
+          {me.recs.length > 0 && (
             <ul className="my-recs">
               {me.recs.map((r) => (
                 <li key={r.id}>
@@ -452,14 +422,14 @@ export default function Page() {
                 </li>
               ))}
             </ul>
-          </div>
+          )}
         </section>
       )}
 
       {view === "badges" && mounted && (
         <section className="badges-view">
           <div className="mission-card">
-            <h2>Миссия дня {mission.complete ? "✅" : ""}</h2>
+            <h3>Миссия дня {mission.complete ? "✅" : ""}</h3>
             <ul>
               {mission.parts.map((p, i) => (
                 <li key={i} className={p.done >= p.of ? "done" : ""}>
@@ -468,7 +438,7 @@ export default function Page() {
               ))}
             </ul>
             <p className="muted">
-              Серия: 🔥 {st}. Лучшая оценка: {progress.best || "—"}. Фраз разобрано: {progress.counts.breakdowns}.
+              🔥 {st} подряд · лучшая оценка {progress.best || "—"} · фраз разобрано {progress.counts.breakdowns}
             </p>
           </div>
           <div className="badge-grid">
@@ -493,15 +463,13 @@ export default function Page() {
             <div key={`${id}-${i}`} className="toast">
               <span>{b.icon}</span>
               <div>
-                <b>Ачивка: {b.title}</b>
+                <b>{b.title}</b>
                 <span>{b.desc}</span>
               </div>
             </div>
           ) : null;
         })}
       </div>
-
-      <footer>Американский английский · Без транскрипции и без «London is the capital»</footer>
     </main>
   );
 }
