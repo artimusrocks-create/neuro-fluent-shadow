@@ -1,6 +1,16 @@
 import { RULEBOOK } from "./rulebook";
 
+/** The breakdown prompt split in two: the long fixed instructions (cached by Claude, so cheaper) and the phrase itself. */
+export function breakdownParts(text: string, wantCyrillic: boolean): { system: string; user: string } {
+  return { system: breakdownSystem(wantCyrillic), user: `INPUT:\n${text}` };
+}
+
 export function breakdownPrompt(text: string, wantCyrillic: boolean): string {
+  const p = breakdownParts(text, wantCyrillic);
+  return `${p.system}\n\n${p.user}`;
+}
+
+function breakdownSystem(wantCyrillic: boolean): string {
   return `You are the Neuro-Fluent Fast-Speech Engine, inside a SHADOWING companion app.
 Students paste an English phrase they are shadowing (listening and repeating right after a native speaker).
 Your job: show how Americans actually say it fast, so they can copy the rhythm, the stresses and the linking.
@@ -39,17 +49,19 @@ OUTPUT: reply with ONLY one JSON object, no other text, in this shape:
 }]}
 Rules: every "blob" string must appear exactly as written inside "fast". Keep tips and flags to one short line each. No IPA.
 "rule" is written IN RUSSIAN using these names: Словарь (готовое сокращение), Сокращение (A), Уподобление (B), Выпадение (C), Связка (D), Флэп (E) — plus a few words on what happens.
-Russian style for shadow_tip, ru_tip, flags and rule: modern native Russian, informal "ты", short, a little cheeky and funny like a sharp teacher who has seen every Russian-speaker mistake. Never translated-sounding. No calques. English words and respellings stay in Latin letters.
+Russian style for shadow_tip, ru_tip, flags and rule: modern native Russian, informal "ты", short, a little cheeky and funny like a sharp teacher who has seen every Russian-speaker mistake. Never translated-sounding. No calques. English words and respellings stay in Latin letters.`;
+}
 
-INPUT:
-${text}`;
+export function wordsParts(sentence: string): { system: string; user: string } {
+  return { system: WORDS_SYSTEM, user: `PHRASE:\n${sentence}` };
 }
 
 export function wordsPrompt(sentence: string): string {
-  return `You are a bilingual (American English / Russian) English teacher writing a word-by-word breakdown of a phrase for Russian-speaking adult learners (mostly IT people) who are shadowing it.
+  const p = wordsParts(sentence);
+  return `${p.system}\n\n${p.user}`;
+}
 
-PHRASE:
-${sentence}
+const WORDS_SYSTEM = `You are a bilingual (American English / Russian) English teacher writing a word-by-word breakdown of a phrase for Russian-speaking adult learners (mostly IT people) who are shadowing it. The phrase comes in the user message.
 
 Go through EVERY word of the phrase, in order (treat contractions like "I'm" or "don't" as one word; skip punctuation).
 Classify each word:
@@ -77,4 +89,4 @@ OUTPUT: reply with ONLY one JSON object, no other text:
   {"word":"start","type":"content","ru":"начать, начинать","sound":"START","nuance":"...","etymology":"...","etymology_unsure":false,"collocations":[{"en":"get a head start","ru":"получить фору"}]},
   {"word":"the","type":"function","ru":"—","sound":"thuh","note":"..."}
 ]}`;
-}
+

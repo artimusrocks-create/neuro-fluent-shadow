@@ -16,12 +16,31 @@ type StudentRow = {
   assigned: string[];
   stats: { streak: number; best: number; daysTotal: number; saved: number; badges: number; records: number };
 };
+type ProRow = { id: string; name: string; code: string; email: string | null; tgUser: string | null; src: string | null; until: string | null; autoRenew: boolean; active: boolean; seen: string | null; canRefundStars: boolean };
+type PayRow = { at: string; src: string; kind: string; amount: number; currency: string; who: string; note?: string };
+type DayRow = { day: string; visitors: number; events: Record<string, number>; revenue: Record<string, number> };
 type Dash = {
   students: StudentRow[];
   recs: MyRec[];
-  telegram: { configured: boolean; subscribers: number; appUrl: string | null; bot: string | null };
+  telegram: { configured: boolean; subscribers: number; appUrl: string | null; bot: string | null; adminChat: boolean };
+  money: { pro: ProRow[]; log: PayRow[]; days: DayRow[]; offer: { telegram: boolean; card: boolean; stars: number; priceRub: string; priceUsd: string } };
 };
-type Tab = "students" | "inbox" | "telegram";
+type Tab = "students" | "inbox" | "money" | "telegram";
+
+const KIND: Record<string, string> = { new: "💸 новая", renew: "🔁 продление", refund: "↩️ возврат", cancel: "🚪 отмена", fail: "⚠️ не прошла", manual: "🎁 вручную" };
+const SRC: Record<string, string> = { stars: "звёзды", lava: "карта", manual: "вручную" };
+const fmtD = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : "—");
+function money(rev: Record<string, number>) {
+  const parts = Object.entries(rev)
+    .filter(([k, v]) => k !== "payments" && v)
+    .map(([k, v]) => (k === "XTR" ? `${Math.round(v)}⭐` : `${Math.round(v * 100) / 100} ${k}`));
+  return parts.length ? parts.join(" + ") : "—";
+}
+function sumRevenue(days: DayRow[]) {
+  const out: Record<string, number> = {};
+  for (const d of days) for (const [k, v] of Object.entries(d.revenue)) out[k] = (out[k] ?? 0) + v;
+  return out;
+}
 
 const QUICK = ["🔥 Огонь, так и говори", "Глотай маленькие слова сильнее", "Ударение не туда, послушай ещё раз", "Медленно. Давай на 🐢 0.75 три раза", "Склейку не сделал, слова отдельно"];
 
@@ -58,6 +77,7 @@ export default function Teacher() {
   const [fb, setFb] = useState<Record<string, string>>({});
   const [flash, setFlash] = useState("");
   const [origin, setOrigin] = useState("");
+  const [grant, setGrant] = useState({ name: "", email: "", days: 30 });
 
   const load = useCallback(async () => {
     setError("");
@@ -145,6 +165,9 @@ export default function Teacher() {
         </button>
         <button type="button" className={tab === "inbox" ? "on" : ""} onClick={() => setTab("inbox")}>
           📥 Записи{unread ? <span className="due-badge">{unread}</span> : null}
+        </button>
+        <button type="button" className={tab === "money" ? "on" : ""} onClick={() => setTab("money")}>
+          💰 Деньги{dash ? ` · ${dash.money.pro.filter((p) => p.active).length} Pro` : ""}
         </button>
         <button type="button" className={tab === "telegram" ? "on" : ""} onClick={() => setTab("telegram")}>
           🤖 Telegram
@@ -327,6 +350,174 @@ export default function Teacher() {
         </section>
       )}
 
+      {dash && tab === "money" && (
+        <section className="results">
+          <div className="stat-grid">
+            <div className="stat">
+              <b>{dash.money.pro.filter((p) => p.active).length}</b>
+              <span>активных Pro</span>
+            </div>
+            <div className="stat">
+              <b>{money(sumRevenue(dash.money.days.slice(0, 7)))}</b>
+              <span>выручка за 7 дней</span>
+            </div>
+            <div className="stat">
+              <b>{dash.money.days.slice(0, 7).reduce((n, d) => n + d.visitors, 0)}</b>
+              <span>посетителей за 7 дней</span>
+            </div>
+          </div>
+
+          <div className="pack">
+            <h3>Оплата</h3>
+            <p>
+              ⭐ Звёзды в Telegram: <b>{dash.money.offer.telegram ? `включены, ${dash.money.offer.stars}⭐/мес` : "выключены"}</b>
+              <br />
+              💳 Карта (lava.top): <b>{dash.money.offer.card ? `включена, ${dash.money.offer.priceRub} / ${dash.money.offer.priceUsd}` : "выключена — добавь ключи lava.top в Vercel"}</b>
+              <br />
+              🔔 Уведомления об оплатах и утренний отчёт:{" "}
+              <b>{dash.telegram.adminChat ? "приходят тебе в Telegram" : dash.telegram.bot ? `напиши боту /admin <пароль препода>` : "сначала подключи бота"}</b>
+            </p>
+          </div>
+
+          <div className="pack">
+            <h3>Воронка по дням</h3>
+            <div className="table-wrap">
+              <table className="word-table funnel">
+                <thead>
+                  <tr>
+                    <th scope="col">День</th>
+                    <th scope="col">Зашли</th>
+                    <th scope="col">Фразы</th>
+                    <th scope="col">Лимит</th>
+                    <th scope="col">Видели Pro</th>
+                    <th scope="col">Жали «оплатить»</th>
+                    <th scope="col">Оплаты</th>
+                    <th scope="col">Выручка</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dash.money.days.map((d) => (
+                    <tr key={d.day}>
+                      <td>{fmtD(d.day + "T12:00:00Z")}</td>
+                      <td>{d.visitors}</td>
+                      <td>{d.events.phrase ?? 0}</td>
+                      <td>{d.events.limit ?? 0}</td>
+                      <td>{d.events.paywall ?? 0}</td>
+                      <td>{(d.events.checkout_stars ?? 0) + (d.events.checkout_card ?? 0)}</td>
+                      <td>{(d.events.pay_new ?? 0) + (d.events.pay_renew ?? 0)}</td>
+                      <td>{money(d.revenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <form
+            className="pack sedit"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const res = (await act({ action: "grant", ...grant }, "Pro выдан, ссылка скопирована")) as { link?: string } | null;
+              if (res?.link) {
+                copy(res.link);
+                setGrant({ name: "", email: "", days: 30 });
+              }
+            }}
+          >
+            <h3>Выдать Pro вручную</h3>
+            <p className="muted">Например, тому, кто перевёл деньги напрямую, или в подарок. Ссылка скопируется — отправь её человеку.</p>
+            <label>
+              Имя
+              <input value={grant.name} onChange={(e) => setGrant({ ...grant, name: e.target.value })} placeholder="Лена" />
+            </label>
+            <label>
+              Почта (необязательно)
+              <input type="email" value={grant.email} onChange={(e) => setGrant({ ...grant, email: e.target.value })} placeholder="lena@example.com" />
+            </label>
+            <label>
+              Дней
+              <input type="number" min={1} max={400} value={grant.days} onChange={(e) => setGrant({ ...grant, days: Number(e.target.value) })} />
+            </label>
+            <button type="submit" className="go small" disabled={!grant.name.trim() && !grant.email.trim()}>
+              🎁 Выдать
+            </button>
+          </form>
+
+          <h3>Подписчики Pro</h3>
+          {dash.money.pro.length === 0 && (
+            <div className="empty">
+              <p>Пока никого. Как только кто-то оплатит, он появится здесь, а тебе придёт сообщение в Telegram.</p>
+            </div>
+          )}
+          {dash.money.pro.map((p) => (
+            <div key={p.id} className="srow">
+              <div className="srow-top">
+                <div>
+                  <b className="sname">{p.name}</b>
+                  <span className="muted">
+                    {" "}
+                    · {p.email ?? (p.tgUser ? "@" + p.tgUser : "")} · {SRC[p.src ?? ""] ?? p.src} · {ago(p.seen)}
+                  </span>
+                </div>
+                <div className="sstats">
+                  <span>{p.active ? `✅ до ${fmtD(p.until)}` : `⛔ закончился ${fmtD(p.until)}`}</span>
+                  <span>{p.autoRenew ? "🔁 продлится" : "без автопродления"}</span>
+                </div>
+              </div>
+              <div className="actions">
+                <button type="button" className="act" onClick={async () => say((await copy(`${origin}/?code=${p.code}`)) ? "Ссылка скопирована" : `${origin}/?code=${p.code}`)}>
+                  🔗 Ссылка
+                </button>
+                <button type="button" className="act" onClick={() => act({ action: "extend", id: p.id, days: 30 }, "+30 дней")}>
+                  ➕ 30 дней
+                </button>
+                {p.active &&
+                  (confirmDel === `rv-${p.id}` ? (
+                    <button type="button" className="act running" onClick={() => (act({ action: "revoke", id: p.id }, "Доступ закрыт"), setConfirmDel(null))}>
+                      Точно закрыть доступ?
+                    </button>
+                  ) : (
+                    <button type="button" className="act" onClick={() => setConfirmDel(`rv-${p.id}`)}>
+                      ⛔ Закрыть
+                    </button>
+                  ))}
+                {p.canRefundStars &&
+                  (confirmDel === `rf-${p.id}` ? (
+                    <button type="button" className="act running" onClick={() => (act({ action: "refundStars", id: p.id }, "Звёзды вернули"), setConfirmDel(null))}>
+                      Вернуть звёзды и закрыть?
+                    </button>
+                  ) : (
+                    <button type="button" className="act" onClick={() => setConfirmDel(`rf-${p.id}`)}>
+                      ↩️ Вернуть звёзды
+                    </button>
+                  ))}
+              </div>
+            </div>
+          ))}
+
+          <h3>Платежи</h3>
+          {dash.money.log.length === 0 ? (
+            <div className="empty">
+              <p>Платежей пока не было.</p>
+            </div>
+          ) : (
+            <ul className="lib-list">
+              {dash.money.log.map((l, i) => (
+                <li key={i} className="pay-row">
+                  <span>{fmtD(l.at)}</span>
+                  <span>{KIND[l.kind] ?? l.kind}</span>
+                  <b>{l.amount ? `${l.amount} ${l.currency === "XTR" ? "⭐" : l.currency}` : ""}</b>
+                  <span className="muted">
+                    {l.who} · {SRC[l.src] ?? l.src}
+                    {l.note ? ` · ${l.note}` : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
       {dash && tab === "telegram" && (
         <section className="results">
           <div className="pack">
@@ -345,7 +536,14 @@ export default function Teacher() {
                     "Токен есть. Осталось нажать кнопку ниже."
                   )}
                 </p>
-                <p className="muted">Кнопка ниже привязывает бота к этому сайту: меню «🎧 Тренажёр», команды и ежедневная рассылка в 9:00 по Тбилиси. Жми её ещё раз, если поменяешь адрес сайта.</p>
+                <p className="muted">
+                  Кнопка ниже привязывает бота к этому сайту: меню «🎧 Тренажёр», команды, оплата звёздами и рассылка «Фразы дня» в 9:00 по Тбилиси. Жми её ещё раз, если
+                  поменяешь адрес сайта.
+                </p>
+                <p className="muted">
+                  Чтобы получать уведомления об оплатах и утренний отчёт, напиши боту: <code>/admin пароль-препода</code>.{" "}
+                  {dash.telegram.adminChat ? "✅ Уже подключено." : ""}
+                </p>
                 <button
                   type="button"
                   className="go small"

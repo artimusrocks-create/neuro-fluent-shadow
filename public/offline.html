@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Нет интернета · Neuro-Fluent Shadow</title>
+<style>
+  :root { color-scheme: light dark; --bg: #fcfbff; --ink: #1f1c2e; --muted: #77738f; --btn: #1f1c2e; --on: #fff; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #14121d; --ink: #eeeaff; --muted: #9a96b2; --btn: #eeeaff; --on: #14121d; } }
+  body { margin: 0; min-height: 100dvh; display: grid; place-items: center; background: var(--bg); color: var(--ink);
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 24px 16px; box-sizing: border-box; text-align: center; }
+  .orb { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 20px; background: radial-gradient(circle at 30% 30%, #fff1a8, #c9bfff 55%, #8f7df0); }
+  h1 { font-size: 24px; margin: 0 0 8px; }
+  p { color: var(--muted); max-width: 34ch; margin: 0 auto 24px; }
+  button { height: 52px; padding: 0 28px; border: 0; border-radius: 999px; background: var(--btn); color: var(--on); font: inherit; font-weight: 600; cursor: pointer; }
+</style>
+</head>
+<body>
+  <main>
+    <div class="orb" aria-hidden="true"></div>
+    <h1>Нет интернета</h1>
+    <p>Голос и разбор фраз приходят с сервера, так что без сети тренажёр не работает. Как появится связь — жми кнопку.</p>
+    <button type="button" onclick="location.reload()">Обновить</button>
+  </main>
+</body>
+</html>

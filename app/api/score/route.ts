@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   out.append("language_code", "en");
   out.append("file", file, "take.webm");
 
-  const res = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
+  const res = await fetch(`${process.env.ELEVENLABS_BASE_URL || "https://api.elevenlabs.io"}/v1/speech-to-text`, {
     method: "POST",
     headers: { "xi-api-key": apiKey },
     body: out,

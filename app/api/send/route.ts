@@ -11,7 +11,7 @@ export const maxDuration = 30;
 export async function POST(req: Request) {
   const who = await getWho(req);
   if (isResponse(who)) return who;
-  if (who.role !== "student") return jsonError("Отправлять записи могут только ученики по личной ссылке.", 403);
+  if (who.role !== "student" || who.student.plan === "pro") return jsonError("Отправлять записи могут только ученики Артёма по личной ссылке.", 403);
   const r = redis();
   if (!r || !hasBlob()) return jsonError("Хранилище для записей ещё не подключено.", 500);
 

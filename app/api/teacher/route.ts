@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
-import { getWho, isResponse, Student, usage, STUDENT_LIMITS } from "@/lib/auth";
+import { getWho, isActive, isResponse, Student, usage, STUDENT_LIMITS } from "@/lib/auth";
 import { newCode, newId, redis } from "@/lib/store";
 import { getRecs, publicRec, Rec } from "@/lib/recs";
 import { jsonError } from "@/lib/server";
-import { setupTelegram, tgConfigured } from "@/lib/telegram";
+import { setupTelegram, tg, tgConfigured } from "@/lib/telegram";
+import { extendUntil, getStudent, grantPro, logPay, offer, patchStudent, payLog, personalLink, proAccounts, revokePro, validEmail } from "@/lib/pro";
+import { stats } from "@/lib/analytics";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -39,8 +41,9 @@ export async function GET(req: Request) {
 
   const all = (await r.hgetall<Record<string, Student>>("students")) ?? {};
   const seen = (await r.hgetall<Record<string, string>>("seen")) ?? {};
+  // Paying Pro customers live in the "Деньги" tab; this list is the teacher's own students.
   const students = await Promise.all(
-    Object.values(all).map(async (s) => {
+    Object.values(all).filter((s) => s.plan !== "pro").map(async (s) => {
       const [p, assigned, u] = await Promise.all([r.get<Progress>(`progress:${s.id}`), r.get<string[]>(`assign:${s.id}`), usage(s.id)]);
       return {
         ...s,
@@ -65,10 +68,16 @@ export async function GET(req: Request) {
   const recs = (await getRecs(recIds)).map(publicRec);
   const subs = await r.scard("tg:subs");
 
+  const [pros, log, days, off, adminChat] = await Promise.all([proAccounts(), payLog(60), stats(14), offer(), r.get<string>("cfg:adminChat")]);
+  const pro = pros
+    .map((s) => ({ id: s.id, name: s.name, code: s.code, email: s.email ?? null, tgUser: s.tgUser ?? null, src: s.src ?? null, until: s.until ?? null, autoRenew: !!s.autoRenew, active: isActive(s), seen: seen[s.id] ?? null, canRefundStars: !!(s.tg && s.starsCharge) }))
+    .sort((a, b) => Number(b.active) - Number(a.active) || (b.until ?? "").localeCompare(a.until ?? ""));
+
   return NextResponse.json({
     students,
     recs,
-    telegram: { configured: tgConfigured(), subscribers: subs, appUrl: await r.get<string>("cfg:appUrl"), bot: await r.get<string>("cfg:bot") },
+    telegram: { configured: tgConfigured(), subscribers: subs, appUrl: await r.get<string>("cfg:appUrl"), bot: await r.get<string>("cfg:bot"), adminChat: !!(adminChat || process.env.TEACHER_CHAT_ID) },
+    money: { pro, log, days, offer: off },
   });
 }
 
@@ -134,6 +143,41 @@ export async function POST(req: Request) {
       const id = String(body.recId ?? "");
       const rec = await r.get<Rec>(`rec:${id}`);
       if (rec) await r.set(`rec:${id}`, { ...rec, seen: true });
+      return NextResponse.json({ ok: true });
+    }
+    case "grant": {
+      const name = String(body.name ?? "").trim().slice(0, 40);
+      const email = String(body.email ?? "").trim().toLowerCase();
+      const days = Math.max(1, Math.min(400, Math.round(Number(body.days) || 30)));
+      if (!name && !email) return jsonError("Напиши имя или почту.", 400);
+      if (email && !validEmail(email)) return jsonError("Проверь почту.", 400);
+      const { student } = await grantPro({ src: "manual", name: name || undefined, email: email || undefined, days, autoRenew: false });
+      await logPay({ src: "manual", kind: "manual", amount: 0, currency: "", who: name || email, studentId: student.id, note: `${days} дн.` });
+      return NextResponse.json({ ok: true, student, link: await personalLink(student, new URL(req.url).origin) });
+    }
+    case "extend": {
+      const s = await getStudent(String(body.id ?? ""));
+      if (!s || s.plan !== "pro") return jsonError("Нет такого Pro.", 404);
+      const days = Math.max(1, Math.min(400, Math.round(Number(body.days) || 30)));
+      await patchStudent(s.id, { until: extendUntil(s.until, days) });
+      return NextResponse.json({ ok: true });
+    }
+    case "revoke": {
+      const s = await getStudent(String(body.id ?? ""));
+      if (!s || s.plan !== "pro") return jsonError("Нет такого Pro.", 404);
+      await revokePro(s.id);
+      return NextResponse.json({ ok: true });
+    }
+    case "refundStars": {
+      const s = await getStudent(String(body.id ?? ""));
+      if (!s || !s.tg || !s.starsCharge) return jsonError("Тут нечего возвращать звёздами.", 400);
+      try {
+        await tg("refundStarPayment", { user_id: s.tg, telegram_payment_charge_id: s.starsCharge });
+      } catch (e) {
+        return jsonError(e instanceof Error ? e.message : "Telegram не вернул звёзды.", 502);
+      }
+      await revokePro(s.id);
+      await logPay({ src: "stars", kind: "refund", amount: 0, currency: "XTR", who: s.tgUser ? `@${s.tgUser}` : s.name, studentId: s.id });
       return NextResponse.json({ ok: true });
     }
     case "telegram": {

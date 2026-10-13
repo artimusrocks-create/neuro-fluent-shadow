@@ -4,6 +4,8 @@ import { getWho, isResponse, useLimit } from "@/lib/auth";
 import { blobPut, blobReadText, hasBlob, hash, redis, Stored } from "@/lib/store";
 import { isKnownVoice } from "@/lib/voices";
 
+const elevenBase = () => process.env.ELEVENLABS_BASE_URL || "https://api.elevenlabs.io";
+
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
@@ -77,7 +79,7 @@ export async function POST(req: Request) {
   // The "with-timestamps" endpoint returns the audio plus the time each character is spoken,
   // which powers the karaoke highlight.
   const res = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}/with-timestamps?output_format=mp3_44100_128`,
+    `${elevenBase()}/v1/text-to-speech/${encodeURIComponent(voiceId)}/with-timestamps?output_format=mp3_44100_128`,
     {
       method: "POST",
       headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },

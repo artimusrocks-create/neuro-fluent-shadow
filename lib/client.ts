@@ -97,8 +97,10 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 
 // ---------- API calls ----------
 export type MyRec = { id: string; text: string; score: number | null; at: string; feedback: string | null; feedbackAt: string | null; audio: string; name: string; studentId: string; seen: boolean };
+export type Offer = { telegram: boolean; bot: string | null; stars: number; card: boolean; priceRub: string; priceUsd: string; days: number };
 export type Me = {
   role: "teacher" | "student" | "demo";
+  plan: "teacher" | "class" | "pro" | "free";
   name: string;
   db: boolean;
   assigned: string[];
@@ -107,6 +109,9 @@ export type Me = {
   limits?: Record<string, number>;
   usage?: Record<string, number>;
   free?: { used: number; limit: number; contact: string };
+  pro?: { until: string | null; autoRenew: boolean; src: string | null };
+  lapsed?: { until: string | null };
+  offer: Offer;
 };
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -295,4 +300,99 @@ export function wordAt(words: WordTiming[], t: number): number {
     else break;
   }
   return idx;
+}
+
+// ---------- Analytics (anonymous counters) ----------
+export function trackEvent(e: string) {
+  try {
+    const body = JSON.stringify({ e, d: deviceId() });
+    if (navigator.sendBeacon?.("/api/event", body)) return;
+    fetch("/api/event", { method: "POST", body, keepalive: true }).catch(() => {});
+  } catch {}
+}
+/** Count an event at most once per day on this device. */
+export function trackOnce(e: string) {
+  try {
+    const k = `nf-ev-${e}`;
+    const today = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem(k) === today) return;
+    localStorage.setItem(k, today);
+  } catch {}
+  trackEvent(e);
+}
+
+// ---------- Where the app runs ----------
+const APP_KEY = "nf-app";
+/** Inside the Android app from Google Play: no prices or payment links (Play's rules). */
+export function isStoreApp(): boolean {
+  try {
+    return localStorage.getItem(APP_KEY) === "android";
+  } catch {
+    return false;
+  }
+}
+export function markStoreApp() {
+  try {
+    localStorage.setItem(APP_KEY, "android");
+  } catch {}
+}
+type TgWebApp = {
+  initData?: string;
+  ready: () => void;
+  expand: () => void;
+  openInvoice?: (url: string, cb?: (status: "paid" | "cancelled" | "failed" | "pending") => void) => void;
+  openTelegramLink?: (url: string) => void;
+};
+export function telegramApp(): TgWebApp | null {
+  const w = (window as unknown as { Telegram?: { WebApp?: TgWebApp } }).Telegram?.WebApp;
+  return w && w.initData ? w : null;
+}
+
+// ---------- UTM (where a visitor came from) ----------
+const UTM_KEY = "nf-utm";
+export function rememberUtm(url: URL) {
+  try {
+    const utm = Object.fromEntries(["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"].map((k) => [k, url.searchParams.get(k) ?? ""]).filter(([, v]) => v));
+    if (Object.keys(utm).length) localStorage.setItem(UTM_KEY, JSON.stringify(utm));
+  } catch {}
+}
+export function savedUtm(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(UTM_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+// ---------- Pro: pay, then claim the personal code ----------
+const CLAIM_KEY = "nf-claim";
+export function newNonce(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+export function pendingClaim(): string | null {
+  try {
+    const c = JSON.parse(localStorage.getItem(CLAIM_KEY) ?? "null") as { nonce: string; at: number } | null;
+    return c && Date.now() - c.at < 3 * 86400000 ? c.nonce : null;
+  } catch {
+    return null;
+  }
+}
+export function setPendingClaim(nonce: string | null) {
+  try {
+    if (nonce) localStorage.setItem(CLAIM_KEY, JSON.stringify({ nonce, at: Date.now() }));
+    else localStorage.removeItem(CLAIM_KEY);
+  } catch {}
+}
+export const startStars = (nonce: string) => post<{ link: string; bot: string | null }>("/api/pro/stars", { nonce });
+export const startCard = (nonce: string, email: string, currency: "RUB" | "USD" | "EUR") =>
+  post<{ url: string }>("/api/pro/checkout", { nonce, email, currency, utm: savedUtm() });
+export const restoreAccess = (email: string) => post<{ sent?: boolean; manual?: boolean; contact?: string }>("/api/pro/restore", { email });
+export async function checkClaim(nonce: string): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/pro/claim?nonce=${encodeURIComponent(nonce)}`, { cache: "no-store" });
+    const data = (await res.json()) as { code?: string };
+    return data.code ?? null;
+  } catch {
+    return null;
+  }
 }

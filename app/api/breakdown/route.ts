@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { breakdownPrompt } from "@/lib/prompts";
+import { breakdownParts } from "@/lib/prompts";
 import { askClaudeJSON, jsonError, MAX_INPUT_CHARS } from "@/lib/server";
 import { freePhraseGate, getWho, isResponse, useLimit } from "@/lib/auth";
 import { hash, redis } from "@/lib/store";
+import { count } from "@/lib/analytics";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -39,11 +40,12 @@ export async function POST(req: Request) {
   }
 
   try {
-    const data = await askClaudeJSON<{ sentences: unknown[] }>(breakdownPrompt(text, !!body.cyrillic), 12000);
+    const data = await askClaudeJSON<{ sentences: unknown[] }>(breakdownParts(text, !!body.cyrillic), 12000);
     if (!data || !Array.isArray(data.sentences) || !data.sentences.length) {
       return jsonError("Разбор пришёл пустым. Попробуй ещё раз.", 502);
     }
     if (r) await r.set(key, data, { ex: 90 * 86400 }).catch(() => {});
+    await count("ai_breakdown");
     return NextResponse.json(data);
   } catch (e) {
     return jsonError(e instanceof Error ? e.message : "Разбор не удался.", 502);

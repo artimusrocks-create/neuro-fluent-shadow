@@ -13,13 +13,37 @@ import {
   Mic,
   Plus,
   RotateCcw,
+  KeyRound,
   Search,
   Send,
+  Sparkles,
   Square,
 } from "lucide-react";
 import Practice from "./Practice";
+import ProSheet, { ProReason } from "./ProSheet";
 import Sheet, { Switch } from "./ui/Sheet";
-import { ApiError, Me, Sentence, fetchBreakdown, fetchMe, isBaked, fetchScoreWords, getPasscode, recAudioUrl, saveProgressRemote, setPasscode } from "@/lib/client";
+import {
+  ApiError,
+  Me,
+  Sentence,
+  checkClaim,
+  fetchBreakdown,
+  fetchMe,
+  isBaked,
+  isStoreApp,
+  fetchScoreWords,
+  getPasscode,
+  markStoreApp,
+  pendingClaim,
+  recAudioUrl,
+  rememberUtm,
+  saveProgressRemote,
+  setPasscode,
+  setPendingClaim,
+  telegramApp,
+  trackEvent,
+  trackOnce,
+} from "@/lib/client";
 import { PACKS, Pack, packGradient, phraseOfTheDay } from "@/lib/packs";
 import { BADGES, getState, isDue, mergeRemote, missionProgress, onBadges, onChange, setSettings, streak, track, useProgress } from "@/lib/progress";
 import { DEFAULT_VOICE, VOICES } from "@/lib/voices";
@@ -57,7 +81,9 @@ export default function Page() {
   const [toasts, setToasts] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [dictating, setDictating] = useState(false);
-  const [limitOpen, setLimitOpen] = useState(false);
+  const [pro, setPro] = useState<{ reason: ProReason; waiting?: boolean } | null>(null);
+  const [store, setStore] = useState(false);
+  const [notice, setNotice] = useState("");
   const recRef = useRef<MediaRecorder | null>(null);
   const loadingRef = useRef<Set<string>>(new Set());
 
@@ -78,6 +104,32 @@ export default function Page() {
     }
   }
 
+  function openPro(reason: ProReason) {
+    if (reason === "limit") trackEvent("limit");
+    setPro({ reason });
+  }
+
+  async function activated(c: string) {
+    setPasscode(c);
+    setCode(c);
+    setPro(null);
+    setNotice("Pro включён 🎉 Ссылка с кодом пришла в Telegram или на почту — сохрани её.");
+    setTimeout(() => setNotice(""), 9000);
+    await loadMe();
+  }
+
+  /** A payment may have gone through while the app was closed: check once, quietly. */
+  async function quietClaim() {
+    const nonce = pendingClaim();
+    if (!nonce) return;
+    const c = await checkClaim(nonce);
+    if (c) {
+      setPendingClaim(null);
+      trackEvent("pro_activated");
+      activated(c);
+    }
+  }
+
   useEffect(() => {
     if (me?.role !== "student") return;
     let t: ReturnType<typeof setTimeout> | undefined;
@@ -94,18 +146,33 @@ export default function Page() {
   useEffect(() => {
     setMounted(true);
     const url = new URL(window.location.href);
+    rememberUtm(url);
     const c = url.searchParams.get("code");
-    if (c) {
-      setPasscode(c.trim());
-      url.searchParams.delete("code");
-      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
-    }
+    if (c) setPasscode(c.trim());
+    // Opened from the Android app (Google Play): hide prices and payment links there.
+    if (url.searchParams.get("app") === "android") markStoreApp();
+    setStore(isStoreApp());
+    if (isStoreApp()) trackOnce("android");
+    const paid = url.searchParams.get("paid");
+    const deep = url.searchParams.get("p");
+    const wantPro = url.searchParams.get("pro");
+    for (const k of ["code", "app", "paid", "p", "pro", "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"]) url.searchParams.delete(k);
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
     setCode(getPasscode());
     loadMe();
     setTip(Math.floor(Math.random() * TIPS.length));
+    trackOnce("visit");
     const tg = (window as unknown as { Telegram?: { WebApp?: { ready: () => void; expand: () => void } } }).Telegram?.WebApp;
     tg?.ready();
     tg?.expand();
+    if (telegramApp()) trackOnce("telegram");
+    // Came back from the card payment page, or opened a "?pro=1" link.
+    if (paid === "1" && pendingClaim()) setPro({ reason: "menu", waiting: true });
+    else if (wantPro && !isStoreApp()) setPro({ reason: "menu" });
+    else if (pendingClaim()) quietClaim();
+    // A link to one phrase: /?p=Can%20I%20get%20a%20coffee%20to%20go%3F
+    if (deep === "today") setQueue({ items: [{ text: phraseOfTheDay().text }], index: 0, label: "Фраза дня" });
+    else if (deep && deep.trim()) setQueue({ items: [{ text: deep.trim().slice(0, 400) }], index: 0, label: "Фраза" });
     return onBadges((ids) => {
       setToasts((t) => [...t, ...ids]);
       setTimeout(() => setToasts((t) => t.slice(ids.length)), 4000);
@@ -138,7 +205,7 @@ export default function Page() {
           return { ...cur, items };
         });
       } catch (e) {
-        if (e instanceof ApiError && e.kind === "limit") setLimitOpen(true);
+        if (e instanceof ApiError && e.kind === "limit") openPro("limit");
         const msg = e instanceof Error ? e.message : "Не получилось загрузить фразу.";
         setQueue((cur) => (cur ? { ...cur, items: cur.items.map((x) => (x.text === it.text ? { ...x, err: msg } : x)) } : cur));
       } finally {
@@ -162,7 +229,7 @@ export default function Page() {
     setQueue({ items, index, label, fromLibrary });
   }
   const startTexts = (texts: string[], label: string, index = 0) => startQueue(texts.map((t) => ({ text: t })), label, false, index);
-  const startPack = (p: Pack) => startTexts(p.phrases, p.title);
+  const startPack = (p: Pack) => (trackEvent("pack"), startTexts(p.phrases, p.title));
 
   async function submit(e?: FormEvent) {
     e?.preventDefault();
@@ -170,6 +237,7 @@ export default function Page() {
     if (!t) return;
     setBusy(true);
     setError("");
+    trackEvent("phrase");
     try {
       const d = await fetchBreakdown(t, settings.cyrillic);
       track("breakdowns");
@@ -179,7 +247,7 @@ export default function Page() {
         "Твой текст"
       );
     } catch (err) {
-      if (err instanceof ApiError && err.kind === "limit") setLimitOpen(true);
+      if (err instanceof ApiError && err.kind === "limit") openPro("limit");
       setError(err instanceof Error ? err.message : "Не получилось. Попробуй ещё раз.");
     } finally {
       setBusy(false);
@@ -293,9 +361,28 @@ export default function Page() {
                 </p>
               )}
               {error && <p className="error-line">{error}</p>}
-              {me?.free && (
+              {notice && <p className="pro-chip">{notice}</p>}
+              {me?.plan === "pro" && me.pro?.until && (
+                <p className="pro-chip">
+                  <Sparkles size={14} /> Pro до {new Date(me.pro.until).toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}
+                </p>
+              )}
+              {me?.lapsed && !store && (
+                <button type="button" className="pro-chip warn" onClick={() => openPro("lapsed")}>
+                  Pro закончился — продлить →
+                </button>
+              )}
+              {me?.free && !me.lapsed && (
                 <p className="free-chip">
                   Бесплатно сегодня: осталось <b>{Math.max(0, me.free.limit - me.free.used)}</b> из {me.free.limit} фраз
+                  {!store && (
+                    <>
+                      {" · "}
+                      <button type="button" className="inline-link" onClick={() => openPro("menu")}>
+                        хочу больше
+                      </button>
+                    </>
+                  )}
                 </p>
               )}
               <button type="button" className="tip-line" onClick={() => setTip((tip + 1) % TIPS.length)}>
@@ -341,6 +428,14 @@ export default function Page() {
                     </span>
                     От препода
                     {feedback > 0 && <span className="count">{feedback}</span>}
+                  </button>
+                )}
+                {me?.plan === "free" && !store && (
+                  <button type="button" className="tile" onClick={() => openPro("menu")}>
+                    <span className="tile-ic pro">
+                      <Sparkles size={22} />
+                    </span>
+                    Pro
                   </button>
                 )}
                 <button type="button" className="tile" onClick={() => setMenu(true)}>
@@ -567,25 +662,50 @@ export default function Page() {
             </button>
           ))}
         </div>
+        <p className="sheet-sec">Доступ</p>
+        <div className="rows">
+          {me?.plan === "pro" ? (
+            <div className="row-item">
+              Shadow Pro
+              <span className="sub">до {me.pro?.until ? new Date(me.pro.until).toLocaleDateString("ru-RU", { day: "numeric", month: "long" }) : "—"}</span>
+            </div>
+          ) : me?.plan === "free" && !store ? (
+            <button type="button" className="row-item" onClick={() => (setMenu(false), openPro("menu"))}>
+              Shadow Pro: 25 фраз в день
+              <Sparkles size={18} />
+            </button>
+          ) : null}
+          <button type="button" className="row-item" onClick={() => (setMenu(false), setPro({ reason: "code" }))}>
+            {store ? "Ввести код доступа" : "Код доступа или восстановить Pro"}
+            <KeyRound size={18} />
+          </button>
+        </div>
+        {me?.plan === "pro" && me.pro?.src === "stars" && <p className="muted small">Подписка через Telegram Stars. Отменить: Настройки Telegram → Telegram Stars → Подписки.</p>}
         {me?.role === "teacher" && (
           <a className="wide-btn light" href="/teacher">
             Кабинет преподавателя
           </a>
         )}
+        <p className="legal-links">
+          <a href="/start">О приложении</a> · <a href="/phrases">Все фразы</a> · <a href="/terms">Условия</a> · <a href="/privacy">Конфиденциальность</a> ·{" "}
+          <a href={me?.free?.contact || "https://t.me/rawmeatsalad"} target="_blank" rel="noopener noreferrer">
+            Написать Артёму
+          </a>
+        </p>
       </Sheet>
 
-      {/* Free limit reached */}
-      <Sheet open={limitOpen} onOpenChange={setLimitOpen} title="5 бесплатных фраз на сегодня закончились">
-        <p className="tip-line" style={{ textAlign: "left" }}>
-          Завтра будет ещё 5. А если хочешь заниматься без ограничений и с живым преподавателем — напиши Артёму.
-        </p>
-        <a className="wide-btn" href={me?.free?.contact || "https://t.me/rawmeatsalad"} target="_blank" rel="noopener noreferrer">
-          Написать в Telegram
-        </a>
-        <button type="button" className="wide-btn light" onClick={() => (setLimitOpen(false), setQueue(null))}>
-          Вернусь завтра
-        </button>
-      </Sheet>
+      {/* Pro offer: free limit reached, lapsed, or opened from the menu */}
+      <ProSheet
+        open={!!pro}
+        reason={pro?.reason ?? "menu"}
+        startWaiting={!!pro?.waiting}
+        me={me}
+        onClose={() => {
+          if (pro?.reason === "limit") setQueue(null);
+          setPro(null);
+        }}
+        onActivated={activated}
+      />
 
       {/* Practice */}
       <AnimatePresence>
@@ -607,7 +727,7 @@ export default function Page() {
               index={queue.index}
               total={queue.items.length}
               fromLibrary={queue.fromLibrary}
-              canSend={me?.role === "student"}
+              canSend={me?.plan === "class"}
               onPrev={() => setQueue((q) => (q ? { ...q, index: Math.max(0, q.index - 1) } : q))}
               onNext={() => setQueue((q) => (q ? { ...q, index: Math.min(q.items.length - 1, q.index + 1) } : q))}
               onClose={() => setQueue(null)}

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { wordsPrompt } from "@/lib/prompts";
+import { wordsParts } from "@/lib/prompts";
 import { askClaudeJSON, jsonError } from "@/lib/server";
 import { getWho, isResponse, useLimit } from "@/lib/auth";
 import { hash, redis } from "@/lib/store";
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
   if (limited) return limited;
 
   try {
-    const data = await askClaudeJSON<{ words: unknown[] }>(wordsPrompt(sentence), 8000);
+    const data = await askClaudeJSON<{ words: unknown[] }>(wordsParts(sentence), 8000);
     if (!data || !Array.isArray(data.words) || !data.words.length) {
       return jsonError("Разбор по словам пришёл пустым. Попробуй ещё раз.", 502);
     }
