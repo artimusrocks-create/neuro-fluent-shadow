@@ -34,6 +34,17 @@ export function newCode(name: string) {
   return `${base}-${tail}`;
 }
 
+/** Reserve a personal code that nobody else has, pointing at this student id. */
+export async function claimCode(name: string, id: string): Promise<string> {
+  const r = redis();
+  for (let i = 0; i < 8; i++) {
+    const code = newCode(name);
+    if (!r) return code;
+    if (await r.set(`code:${code}`, id, { nx: true })) return code;
+  }
+  throw new Error("Не получилось придумать код. Попробуй ещё раз.");
+}
+
 export const dayKey = () => {
   // Days roll over in Tbilisi time (UTC+4), where the teacher lives.
   const d = new Date(Date.now() + 4 * 3600 * 1000);

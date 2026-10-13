@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getWho, isActive, isResponse, Student, usage, STUDENT_LIMITS } from "@/lib/auth";
-import { newCode, newId, redis } from "@/lib/store";
+import { claimCode, newId, redis } from "@/lib/store";
 import { getRecs, publicRec, Rec } from "@/lib/recs";
 import { jsonError } from "@/lib/server";
 import { setupTelegram, tg, tgConfigured } from "@/lib/telegram";
@@ -96,9 +96,9 @@ export async function POST(req: Request) {
     case "create": {
       const name = String(body.name ?? "").trim().slice(0, 40);
       if (!name) return jsonError("Напиши имя ученика.", 400);
-      const s: Student = { id: newId(6), name, code: newCode(name), created: new Date().toISOString() };
+      const id = newId(6);
+      const s: Student = { id, name, code: await claimCode(name, id), created: new Date().toISOString() };
       await r.hset("students", { [s.id]: s });
-      await r.set(`code:${s.code}`, s.id);
       return NextResponse.json({ ok: true, student: s });
     }
     case "delete": {

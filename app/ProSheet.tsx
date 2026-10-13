@@ -74,14 +74,14 @@ export default function ProSheet({
         setPendingClaim(null);
         trackEvent("pro_activated");
         onActivated(c);
-      } else if (tries > 240) stop(); // ~10 minutes
+      } else if (tries > 100) stop(); // ~5 minutes; it also checks again whenever the app comes back to the screen
     };
     const stop = () => {
       if (pollRef.current) clearInterval(pollRef.current);
       pollRef.current = null;
     };
     tick();
-    pollRef.current = setInterval(tick, 2500);
+    pollRef.current = setInterval(tick, 3000);
     const onFocus = () => tick();
     window.addEventListener("focus", onFocus);
     return () => {

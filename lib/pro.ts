@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "crypto";
-import { dayKey, newCode, newId, redis } from "./store";
+import { claimCode, dayKey, newId, redis } from "./store";
 import type { ProSource, Student } from "./auth";
 import { count } from "./analytics";
 import { appBase, tg, tgConfigured } from "./telegram";
@@ -112,10 +112,11 @@ export async function grantPro(g: Grant): Promise<{ student: Student; created: b
     });
   } else {
     const name = (g.name || (email ? email.split("@")[0] : "") || g.tgUser || "Pro").slice(0, 40);
+    const id = newId(6);
     student = clean({
-      id: newId(6),
+      id,
       name,
-      code: newCode(name),
+      code: await claimCode(name, id),
       created: new Date().toISOString(),
       plan: "pro" as const,
       until,
@@ -127,7 +128,6 @@ export async function grantPro(g: Grant): Promise<{ student: Student; created: b
       lavaParent: g.lavaParent,
       starsCharge: g.starsCharge,
     });
-    await r.set(`code:${student.code}`, student.id);
   }
   await r.hset("students", { [student.id]: student });
   if (student.email) await r.set(`pro:email:${student.email}`, student.id);

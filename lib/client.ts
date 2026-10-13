@@ -323,17 +323,25 @@ export function trackOnce(e: string) {
 
 // ---------- Where the app runs ----------
 const APP_KEY = "nf-app";
-/** Inside the Android app from Google Play: no prices or payment links (Play's rules). */
+/**
+ * Inside the Android app from Google Play: no prices or payment links (Play's rules).
+ * Remembered per tab (sessionStorage): the app shares Chrome's storage, and normal Chrome should still show prices.
+ */
 export function isStoreApp(): boolean {
   try {
-    return localStorage.getItem(APP_KEY) === "android";
+    if (sessionStorage.getItem(APP_KEY) === "android") return true;
+    if (document.referrer.startsWith("android-app://com.neurofluent.shadow")) {
+      sessionStorage.setItem(APP_KEY, "android");
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }
 }
 export function markStoreApp() {
   try {
-    localStorage.setItem(APP_KEY, "android");
+    sessionStorage.setItem(APP_KEY, "android");
   } catch {}
 }
 type TgWebApp = {
