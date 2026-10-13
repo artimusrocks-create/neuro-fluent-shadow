@@ -1,0 +1,187 @@
+import { test, expect, Page } from "@playwright/test";
+import { createHash } from "node:crypto";
+
+const MOCK = "http://localhost:4010";
+const TG_SECRET = createHash("sha256").update("123:TEST").digest("hex").slice(0, 32);
+
+/** Keep tests offline: block anything that isn't our app or the mock services. Collect real errors. */
+async function prepare(page: Page) {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (m) => {
+    if (m.type() === "error" && !/Failed to load resource|ERR_FAILED|ERR_BLOCKED/.test(m.text())) errors.push(m.text());
+  });
+  await page.context().route(/^https?:\/\/(?!localhost)/, (route) => route.abort());
+  return errors;
+}
+
+async function noSideScroll(page: Page) {
+  const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(over, "page scrolls sideways on a phone").toBeLessThanOrEqual(1);
+}
+
+async function useFreePhrases(page: Page, n: number) {
+  for (let i = 0; i < n; i++) {
+    await page.getByLabel("Фраза на английском").fill(`Test phrase number ${i} please`);
+    await page.getByRole("button", { name: "Разобрать" }).click();
+    await expect(page.getByRole("dialog", { name: "Тренировка" })).toBeVisible();
+    await page.getByRole("button", { name: "Закрыть", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Тренировка" })).toBeHidden();
+  }
+}
+
+test.beforeEach(async ({ request }) => {
+  await request.post(`${MOCK}/__reset`);
+});
+
+test("home works on a phone and shows the free plan", async ({ page }) => {
+  const errors = await prepare(page);
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Что будем повторять сегодня?" })).toBeVisible();
+  await expect(page.getByText(/Бесплатно сегодня: осталось/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pro", exact: true })).toBeVisible();
+  await noSideScroll(page);
+  expect(errors).toEqual([]);
+});
+
+test("a phrase pack opens full-screen practice", async ({ page }) => {
+  const errors = await prepare(page);
+  await page.goto("/");
+  await page.getByRole("navigation", { name: "Навигация" }).getByRole("button", { name: "Наборы" }).click();
+  await page.getByRole("button", { name: /В кафе и ресторане/ }).click();
+  const practice = page.getByRole("dialog", { name: "Тренировка" });
+  await expect(practice).toBeVisible();
+  await expect(practice.getByText("В кафе и ресторане · 1 из 8")).toBeVisible();
+  await expect(practice.getByRole("button", { name: "Слушать" })).toBeEnabled();
+  expect(errors).toEqual([]);
+});
+
+test("a link to one phrase opens it straight away", async ({ page }) => {
+  await prepare(page);
+  await page.goto(`/?p=${encodeURIComponent("Can I get a coffee to go?")}`);
+  await expect(page.getByRole("dialog", { name: "Тренировка" }).getByText("Фраза · 1 из 1")).toBeVisible();
+});
+
+test("after 5 free phrases the Pro offer appears with both ways to pay", async ({ page }) => {
+  const errors = await prepare(page);
+  await page.goto("/");
+  await useFreePhrases(page, 5);
+  await page.getByLabel("Фраза на английском").fill("One phrase too many");
+  await page.getByRole("button", { name: "Разобрать" }).click();
+  await expect(page.getByRole("heading", { name: "Бесплатные фразы на сегодня закончились" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /В Telegram · 450 ⭐ в месяц/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Картой · 690 ₽ или \$9/ })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("card payment: pay on lava.top, come back, Pro is on", async ({ page, request }) => {
+  await prepare(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Pro", exact: true }).click();
+  await page.getByRole("button", { name: /Картой/ }).click();
+  await page.getByLabel(/Почта/).fill("lena@example.com");
+  await page.getByRole("button", { name: /Российская/ }).click();
+  await page.getByRole("button", { name: "Перейти к оплате" }).click();
+  await expect(page).toHaveURL(/\/lava-pay\//);
+
+  const lava = await (await request.get(`${MOCK}/__calls?service=lava`)).json();
+  const contractId = lava[0].id;
+  const hook = await request.post("/api/pay/lava", {
+    headers: { "X-Api-Key": "lava-hook-secret" },
+    data: { eventType: "payment.success", contractId, buyer: { email: "lena@example.com" }, amount: 690, currency: "RUB", status: "subscription-active" },
+  });
+  expect(await hook.json()).toEqual({ ok: true, result: "granted" });
+
+  await page.goto("/?paid=1");
+  await expect(page.getByText(/Pro включён/)).toBeVisible();
+  await expect(page.getByText(/Pro до \d+/)).toBeVisible();
+  await expect(page.getByText(/Бесплатно сегодня/)).toBeHidden();
+  await expect(page.getByRole("button", { name: "От препода" })).toBeHidden(); // that's for the teacher's own students
+});
+
+test("Telegram Stars from the website: invoice opens, payment arrives, Pro is on", async ({ page, request }) => {
+  await prepare(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Pro", exact: true }).click();
+  const popup = page.waitForEvent("popup");
+  await page.getByRole("button", { name: /В Telegram/ }).click();
+  await (await popup).close();
+  await expect(page.getByText(/Жду подтверждение оплаты/)).toBeVisible();
+
+  const nonce = await page.evaluate(() => JSON.parse(localStorage.getItem("nf-claim") ?? "{}").nonce as string);
+  const res = await request.post("/api/telegram", {
+    headers: { "x-telegram-bot-api-secret-token": TG_SECRET },
+    data: {
+      message: {
+        chat: { id: 501 },
+        from: { id: 501, first_name: "Max", username: "max" },
+        successful_payment: {
+          currency: "XTR",
+          total_amount: 450,
+          invoice_payload: `n:${nonce}`,
+          telegram_payment_charge_id: "pw-charge-1",
+          subscription_expiration_date: Math.floor(Date.now() / 1000) + 30 * 86400,
+          is_recurring: true,
+          is_first_recurring: true,
+        },
+      },
+    },
+  });
+  expect(res.ok()).toBe(true);
+  await expect(page.getByText(/Pro включён/)).toBeVisible({ timeout: 15_000 });
+});
+
+test("inside the Android app: no prices, no payment buttons", async ({ page }) => {
+  await prepare(page);
+  await page.goto("/?app=android");
+  await expect(page.getByRole("heading", { name: "Что будем повторять сегодня?" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pro", exact: true })).toBeHidden();
+  await useFreePhrases(page, 5);
+  await page.getByLabel("Фраза на английском").fill("One phrase too many");
+  await page.getByRole("button", { name: "Разобрать" }).click();
+  await expect(page.getByRole("heading", { name: "На сегодня всё" })).toBeVisible();
+  await expect(page.getByText(/⭐|₽|\$9/)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Войти по коду" })).toBeVisible();
+});
+
+test("teacher sees Pro customers and payments", async ({ page, request }) => {
+  await prepare(page);
+  await request.post("/api/pay/lava", {
+    headers: { "X-Api-Key": "lava-hook-secret" },
+    data: { eventType: "payment.success", contractId: "c-teacher-1", buyer: { email: "oleg@example.com" }, amount: 9, currency: "USD", status: "subscription-active" },
+  });
+  await page.goto("/teacher");
+  await page.getByLabel("Пароль препода").fill("teach-pass");
+  await page.getByRole("button", { name: "Войти" }).click();
+  await page.getByRole("button", { name: /Деньги/ }).click();
+  await expect(page.getByText("oleg@example.com", { exact: false }).first()).toBeVisible();
+  await expect(page.getByText(/9 USD/).first()).toBeVisible();
+});
+
+for (const path of ["/start", "/phrases", "/phrase/can-i-get-a-coffee-to-go", "/phrase/not-bad-cant-complain-how-about-you", "/download", "/privacy", "/terms", "/nope-404"]) {
+  test(`public page ${path} renders cleanly on a phone`, async ({ page }) => {
+    const errors = await prepare(page);
+    const res = await page.goto(path);
+    expect(res?.status()).toBe(path === "/nope-404" ? 404 : 200);
+    await expect(page.locator("h1").first()).toBeVisible();
+    await noSideScroll(page);
+    expect(errors).toEqual([]);
+  });
+}
+
+test("SEO and app plumbing files", async ({ request }) => {
+  const sitemap = await (await request.get("/sitemap.xml")).text();
+  expect(sitemap).toContain("/phrase/can-i-get-a-coffee-to-go");
+  expect((sitemap.match(/<url>/g) ?? []).length).toBeGreaterThanOrEqual(70);
+  expect(await (await request.get("/robots.txt")).text()).toContain("Disallow: /api/");
+  const links = await (await request.get("/.well-known/assetlinks.json")).json();
+  expect(links[0].target.package_name).toBe("com.neurofluent.shadow");
+  const manifest = await (await request.get("/manifest.webmanifest")).json();
+  expect(manifest.id).toBe("/");
+  expect((await request.get("/offline.html")).status()).toBe(200);
+  const sw = await request.get("/sw.js");
+  expect(sw.headers()["cache-control"]).toContain("no-cache");
+  expect((await request.get("/og.png")).status()).toBe(200);
+  const apk = await request.head("/download/neuro-fluent-shadow.apk");
+  expect(apk.status()).toBe(200);
+});

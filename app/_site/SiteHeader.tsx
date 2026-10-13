@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 /** Header for the public pages (landing, phrases, legal). */
-export default function SiteHeader({ cta = "Открыть тренажёр", href = "/" }: { cta?: string; href?: string }) {
+export default function SiteHeader({ cta = "Тренажёр", href = "/" }: { cta?: string; href?: string }) {
   return (
     <header className="topbar">
       <Link href="/start" className="logo">

@@ -100,9 +100,13 @@ function readJSON<T>(file: string): T | null {
   }
 }
 
+/** All sentences of a pack phrase (a phrase like "Not bad, can't complain. How about you?" is two). */
+export function loadSentences(text: string): Sentence[] {
+  return readJSON<{ sentences: Sentence[] }>(path.join(BAKED_DIR, "bd", `${textKey(text)}.json`))?.sentences ?? [];
+}
+
 export function loadSentence(text: string): Sentence | null {
-  const d = readJSON<{ sentences: Sentence[] }>(path.join(BAKED_DIR, "bd", `${textKey(text)}.json`));
-  return d?.sentences?.[0] ?? null;
+  return loadSentences(text)[0] ?? null;
 }
 
 export function loadWords(text: string): WordInfo[] {

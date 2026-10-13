@@ -711,3 +711,9 @@ a.pill-link, a.logo, a.wide-btn { text-decoration: none; }
 .sedit input:not([type="number"]) { font: inherit; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--surface); color: var(--ink); }
 .funnel td, .funnel th { white-space: nowrap; }
 .pay-row { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; }
+.play-block { display: grid; gap: 6px; }
+.sentence-block { display: grid; gap: 10px; }
+.sentence-block + .sentence-block { border-top: 1px dashed var(--line); padding-top: 12px; }
+.topbar .pill-link { white-space: nowrap; }
+.site .topbar .logo { font-size: 16px; min-width: 0; }
+.sedit input[type="number"] { font: inherit; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--surface); color: var(--ink); }

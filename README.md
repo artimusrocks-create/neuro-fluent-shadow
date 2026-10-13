@@ -1,55 +1,47 @@
-# Neuro-Fluent Shadowing
+# Neuro-Fluent Shadow
 
-A shadowing companion for American English. Paste a phrase and get:
+A shadowing companion for American English, for Russian speakers. Paste a phrase and get:
 
-- 🎤 **Karaoke audio**: each word lights up as it's spoken. Stressed words are big, small words are small.
-- 🐢 / 🔥 **Speed ladder**: 0.75 · 1.0 · 1.15
-- 🔁 **Echo ×3**: plays, then gives you a timed gap to repeat
-- 🧱 **Build-up (backchaining)**: last chunk → last two → … → full sentence
-- 🎤 **Record me → 🆚 Compare**: the model, then you, back to back
-- 🔥 **Fast-speech breakdown**: Clear · Fast · Rhythm beats · Blobs + rules (tap any blob to hear it)
-- 📖 **Every word**: Russian translation, nuance, etymology, collocations
-
----
-
-## Step 1 — Get your 3 keys (about 15 min)
-
-| # | What | Where |
-|---|---|---|
-| 1 | **Anthropic API key** (Claude writes the breakdowns) | https://console.anthropic.com/settings/keys (add a few dollars of credit under **Billing**) |
-| 2 | **ElevenLabs API key** (the voice) | https://elevenlabs.io/app/settings/api-keys |
-| 3 | **ElevenLabs Voice ID** (your cloned voice) | Clone it: https://elevenlabs.io/app/voice-lab → **Add voice → Instant Voice Clone** (upload 1–2 min of clean audio of you talking). Then open the voice and copy its **ID**. |
-
-> No clone yet? Pick any American voice from https://elevenlabs.io/app/voice-library and use its ID to test.
-
-When you create the ElevenLabs key, give it permission for **Text to Speech**.
+- 🎤 **Karaoke audio** in the teacher's cloned voice: each word lights up as it's spoken
+- 🐢 / 🔥 **Speeds** 0.5 · 0.75 · 1.0 · 1.15, **Echo ×3**, **build-up** (backchaining)
+- 🎤 **Record yourself → score** (intelligibility, rhythm, pace) and **compare** with the model
+- 🔥 **Fast-speech breakdown**: stresses, rhythm, glued "blobs" with rules, every word in Russian
+- 📚 8 ready-made **phrase packs** (pre-generated, cost nothing to use), phrase of the day, spaced repetition, streaks
+- 👩‍🏫 **Teacher dashboard** (`/teacher`): students with personal links, assigned phrases, recordings inbox, **money tab**
+- 🤖 **Telegram bot + Mini App**: daily phrase, Stars payments, alerts to the teacher
+- 💎 **Shadow Pro** subscription: Telegram Stars or card (lava.top, Russian and foreign cards)
+- 📱 **Android app** (`/android`, downloadable APK at `/download`), installable on iPhone and desktop
+- 🔎 **Public phrase pages** (`/phrases`, `/phrase/...`) for search engines, landing page `/start`, legal pages
 
 ---
 
-## Step 2 — Put it online (Vercel, free)
+## How money comes in (all automatic once keys are set)
 
-1. Make a free GitHub account: https://github.com/signup
-2. Make a new **private** repository: https://github.com/new
-3. Click **"uploading an existing file"** and drag in everything from this folder (not `node_modules`, not `.next`). Commit.
-4. Make a free Vercel account (sign in with GitHub): https://vercel.com/signup
-5. Go to https://vercel.com/new → **Import** your repository.
-6. Before you click **Deploy**, open **Environment Variables** and add:
+1. Free visitors get **5 own phrases a day** (packs are unlimited).
+2. At the limit, or from the **Pro** tile, they see the Pro offer:
+   - **Telegram Stars** (`PRO_STARS`, default 450 ⭐/month): works as soon as `TELEGRAM_BOT_TOKEN` is set.
+   - **Card** via lava.top (`PRO_PRICE_RUB` / `PRO_PRICE_USD`): works once the three `LAVA_*` keys are set.
+3. After paying, the app switches to Pro by itself, and the buyer gets a personal link (Telegram message, and an email if Resend is set up).
+4. Renewals, cancellations and refunds are handled by webhooks. The teacher gets a Telegram alert for each payment and a morning report.
+5. Inside the Google Play app, prices and payment buttons are hidden (Play's rules; Georgia has no Play merchant accounts).
 
-| Name | Value |
+## Setup
+
+All settings, with explanations, are in **`.env.example`**. Put them in Vercel → Project → Settings → Environment Variables, then redeploy.
+
+| Feature | What to set |
 |---|---|
-| `ANTHROPIC_API_KEY` | your Anthropic key |
-| `ELEVENLABS_API_KEY` | your ElevenLabs key |
-| `ELEVENLABS_VOICE_ID` | your voice ID |
-| `APP_PASSCODE` | any word you choose; give it to your students |
+| The app itself | `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `APP_PASSCODE`, Upstash Redis + Blob (Vercel → Storage) |
+| Telegram bot + Stars | `TELEGRAM_BOT_TOKEN`, then `/teacher` → Telegram → **Подключить бота** |
+| Alerts to you | send `/admin <APP_PASSCODE>` to your bot |
+| Card payments | `LAVA_API_KEY`, `LAVA_OFFER_ID`, `LAVA_WEBHOOK_SECRET` (+ webhook URL `https://<site>/api/pay/lava` in lava.top) |
+| Emails with the link | `RESEND_API_KEY`, `EMAIL_FROM` |
+| Legal pages | `LEGAL_NAME`, `LEGAL_ID` |
+| Own domain | add it in Vercel → Domains, then `NEXT_PUBLIC_SITE_URL` |
+| Analytics | built in (teacher → Деньги). Optional Yandex Metrica: `NEXT_PUBLIC_YM_ID` |
+| Safety | `CRON_SECRET`; `FREE_BUDGET_SCALE` caps what free visitors can spend per day |
 
-7. Click **Deploy**. In about 1 minute you get a link like `neuro-fluent-shadow.vercel.app`.
-8. Open it → **🔑 Passcode** → type your passcode → paste a phrase → **Break it down**.
-
-Optional settings: `ANTHROPIC_MODEL` (default `claude-sonnet-5-5`) and `ELEVENLABS_MODEL` (default `eleven_multilingual_v2`).
-
----
-
-## Run it on your own computer (optional)
+## Run it on your computer
 
 ```bash
 npm install
@@ -57,26 +49,38 @@ cp .env.example .env.local   # then paste your keys into .env.local
 npm run dev                  # open http://localhost:3000
 ```
 
----
+## Tests
+
+Everything outside the app (Redis, Claude, ElevenLabs, Telegram, lava.top, Resend) is faked by `tests/mock-server.mjs`,
+so tests never spend money or message anyone.
+
+```bash
+npm test             # unit + API tests (payments, limits, bot, webhooks, content)
+npm run build
+npm run test:e2e     # browser tests on a phone-sized screen (free limit → paywall → card / Stars → Pro, Android mode, pages)
+npm run check        # all of the above
+```
+
+GitHub Actions runs the same on every push (`.github/workflows/ci.yml`).
 
 ## Where to change things
 
 | Want to change… | File |
 |---|---|
+| Prices | Vercel env: `PRO_STARS`, `PRO_PRICE_RUB`, `PRO_PRICE_USD` (and the price in lava.top) |
+| Free and Pro daily limits | `lib/auth.ts` |
+| Pro offer text | `app/ProSheet.tsx` |
+| Landing page | `app/start/page.tsx` |
+| Terms / privacy | `app/terms/page.tsx`, `app/privacy/page.tsx` |
+| Phrase packs (+ Russian for public pages) | `lib/packs.ts`, `lib/phrases.ts`, then `npx tsx scripts/bake.ts` |
 | The connected-speech rules | `lib/rulebook.ts` |
-| What the AI writes (breakdown + word notes) | `lib/prompts.ts` |
-| Speeds, echo repeats | top of `app/SentenceCard.tsx` |
+| What the AI writes | `lib/prompts.ts` |
+| Bot messages | `app/api/telegram/route.ts` |
 | Colors and fonts | `app/globals.css` |
-| Voice settings (stability, style) | `app/api/speak/route.ts` |
+| Android app (name, icon, version) | `android/twa-manifest.json` — see `android/README.md` |
 
 ## Costs (rough)
 
-- **Voice**: ElevenLabs charges per character. One sentence at one speed is cheap. Each speed is a separate clip, and the app reuses clips while the page is open.
-- **Breakdown**: one Claude call per phrase. **Every word** is a second call, made only when someone opens it.
-- The passcode stops strangers from spending your credits.
-
-## Known limits (v1)
-
-- The AI voice says the sentence its own way, so it can differ a little from the respelling. Test your clone on tricky phrases.
-- Etymology marked **⚠ проверить** is the AI being unsure. Check it before you teach it.
-- No pronunciation scoring yet. That's v2.
+- **Voice**: ElevenLabs charges per character. Pack phrases are pre-generated, so they're free to play. Clips are cached.
+- **Breakdown**: one Claude call per new phrase (cached for everyone after that; the long instructions are prompt-cached).
+- Free visitors are capped per device, per network and in total per day (`FREE_BUDGET_SCALE`), so a bot can't drain your credits.

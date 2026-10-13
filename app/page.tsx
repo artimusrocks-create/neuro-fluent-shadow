@@ -421,7 +421,7 @@ export default function Page() {
                   </span>
                   Прогресс
                 </button>
-                {me?.role === "student" && (
+                {me?.plan === "class" && (
                   <button type="button" className="tile" onClick={() => (go("assigned"), loadMe())}>
                     <span className="tile-ic">
                       <Send size={22} />
@@ -430,20 +430,22 @@ export default function Page() {
                     {feedback > 0 && <span className="count">{feedback}</span>}
                   </button>
                 )}
-                {me?.plan === "free" && !store && (
+                {/* Free visitors get "Pro" in the last slot; "Ещё" stays in the top-right ⋯ button. */}
+                {me?.plan === "free" && !store ? (
                   <button type="button" className="tile" onClick={() => openPro("menu")}>
                     <span className="tile-ic pro">
                       <Sparkles size={22} />
                     </span>
                     Pro
                   </button>
+                ) : (
+                  <button type="button" className="tile" onClick={() => setMenu(true)}>
+                    <span className="tile-ic">
+                      <Ellipsis size={22} />
+                    </span>
+                    Ещё
+                  </button>
                 )}
-                <button type="button" className="tile" onClick={() => setMenu(true)}>
-                  <span className="tile-ic">
-                    <Ellipsis size={22} />
-                  </span>
-                  Ещё
-                </button>
               </nav>
 
               <button type="button" className="banner" style={{ background: packGradient(PACKS[0]) }} onClick={() => startPack(PACKS[0])}>
