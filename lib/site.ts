@@ -23,4 +23,5 @@ export const PRICES = {
 };
 
 export const ANDROID_APK = process.env.NEXT_PUBLIC_APK_URL || "/download/neuro-fluent-shadow.apk";
-export const TELEGRAM_BOT = process.env.TELEGRAM_BOT_USERNAME || process.env.NEXT_PUBLIC_TELEGRAM_BOT || "";
+/** The bot's @username (without @). Defaults to Artem's bot, so no Vercel setting is needed for it. */
+export const TELEGRAM_BOT = process.env.TELEGRAM_BOT_USERNAME || process.env.NEXT_PUBLIC_TELEGRAM_BOT || "shadowlearnbot";

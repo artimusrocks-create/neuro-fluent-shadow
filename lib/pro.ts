@@ -3,6 +3,7 @@ import { claimCode, dayKey, newId, redis } from "./store";
 import type { ProSource, Student } from "./auth";
 import { count } from "./analytics";
 import { appBase, tg, tgConfigured } from "./telegram";
+import { TELEGRAM_BOT } from "./site";
 
 /**
  * Shadow Pro: paid, self-serve access.
@@ -31,7 +32,7 @@ export type Offer = {
 /** What the paywall can show right now (depends on which keys are set in Vercel). */
 export async function offer(): Promise<Offer> {
   const r = redis();
-  const bot = process.env.TELEGRAM_BOT_USERNAME || (r ? await r.get<string>("cfg:bot").catch(() => null) : null);
+  const bot = process.env.TELEGRAM_BOT_USERNAME || (r ? await r.get<string>("cfg:bot").catch(() => null) : null) || TELEGRAM_BOT || null;
   return {
     telegram: tgConfigured() && !!r,
     bot: bot ?? null,

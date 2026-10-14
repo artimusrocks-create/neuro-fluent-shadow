@@ -41,7 +41,7 @@ export async function setupTelegram(origin: string) {
     ],
   });
   await tg("setMyDescription", {
-    description: "Neuro-Fluent Shadow — тренажёр американского произношения. Слушаешь, повторяешь, получаешь оценку.",
+    description: "Neuro-Fluent Shadow: тренажёр американского произношения. Слушаешь, повторяешь, получаешь оценку.",
   }).catch(() => {});
   const me = (await tg("getMe", {})) as { username?: string };
   if (r && me.username) await r.set("cfg:bot", me.username);
