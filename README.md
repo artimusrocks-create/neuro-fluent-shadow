@@ -2,7 +2,7 @@
 
 A shadowing companion for American English, for Russian speakers. Paste a phrase and get:
 
-- 🎤 **Karaoke audio** in the teacher's cloned voice: each word lights up as it's spoken
+- 🎤 **Karaoke audio** in native General American voices (ElevenLabs Flash v2.5, language locked to English): each word lights up as it's spoken
 - 🐢 / 🔥 **Speeds** 0.5 · 0.75 · 1.0 · 1.15, **Echo ×3**, **build-up** (backchaining)
 - 🎤 **Record yourself → score** (intelligibility, rhythm, pace) and **compare** with the model
 - 🔥 **Fast-speech breakdown**: stresses, rhythm, glued "blobs" with rules, every word in Russian
@@ -32,7 +32,7 @@ All settings, with explanations, are in **`.env.example`**. Put them in Vercel �
 
 | Feature | What to set |
 |---|---|
-| The app itself | `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `APP_PASSCODE`, Upstash Redis + Blob (Vercel → Storage) |
+| The app itself | `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `APP_PASSCODE`, Upstash Redis + Blob (Vercel → Storage) |
 | Telegram bot + Stars | `TELEGRAM_BOT_TOKEN`, then `/teacher` → Telegram → **Подключить бота** |
 | Alerts to you | send `/admin <APP_PASSCODE>` to your bot |
 | Card payments | `LAVA_API_KEY`, `LAVA_OFFER_ID`, `LAVA_WEBHOOK_SECRET` (+ webhook URL `https://<site>/api/pay/lava` in lava.top) |
@@ -77,6 +77,7 @@ or press Run workflow. See `android/README.md`.
 | Landing page | `app/start/page.tsx` |
 | Terms / privacy | `app/terms/page.tsx`, `app/privacy/page.tsx` |
 | Phrase packs (+ Russian for public pages) | `lib/packs.ts`, `lib/phrases.ts`, then `npx tsx scripts/bake.ts` |
+| Voices, voice model and settings | `lib/voices.ts`, then `npx tsx scripts/bake.ts` (re-makes the pack audio in the default voice) |
 | The connected-speech rules | `lib/rulebook.ts` |
 | What the AI writes | `lib/prompts.ts` |
 | Bot messages | `app/api/telegram/route.ts` |
@@ -85,6 +86,6 @@ or press Run workflow. See `android/README.md`.
 
 ## Costs (rough)
 
-- **Voice**: ElevenLabs charges per character. Pack phrases are pre-generated, so they're free to play. Clips are cached.
+- **Voice**: ElevenLabs charges per character (Flash v2.5 costs half of Multilingual v2). Pack audio is pre-generated in the default voice (~12,000 characters once), so packs are free to play. Everything else is made on first use and cached for everyone.
 - **Breakdown**: one Claude call per new phrase (cached for everyone after that; the long instructions are prompt-cached).
 - Free visitors are capped per device, per network and in total per day (`FREE_BUDGET_SCALE`), so a bot can't drain your credits.

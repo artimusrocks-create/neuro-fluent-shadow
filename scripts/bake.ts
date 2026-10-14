@@ -1,13 +1,15 @@
 // Pre-generates everything the phrase packs need, so packs never call the AI live.
-//   npx tsx scripts/bake.ts            → breakdowns + word notes + audio
+//   npx tsx scripts/bake.ts            → breakdowns + word notes + audio in the default voice
 //   npx tsx scripts/bake.ts --dry      → only count how many voice characters audio would use
-// Safe to re-run: files that already exist are skipped. Needs .env.local keys.
+//   npx tsx scripts/bake.ts --no-audio → breakdowns and word notes only
+// Safe to re-run: files that already exist are skipped. Audio from another voice or an older engine
+// is deleted (the app would never play it). Keys come from the environment or .env.local.
 import fs from "node:fs";
 import path from "node:path";
 import { PACKS } from "../lib/packs";
 import { breakdownPrompt, wordsPrompt } from "../lib/prompts";
 import { askClaudeJSON } from "../lib/server";
-import { VOICES } from "../lib/voices";
+import { DEFAULT_VOICE, TTS, ttsBody } from "../lib/voices";
 import { clipKey, textKey } from "../lib/bakekey";
 
 type Sentence = { text: string; chunks?: string[]; blobs?: { written: string }[] };
@@ -18,10 +20,13 @@ const DRY = process.argv.includes("--dry");
 const NO_AUDIO = process.argv.includes("--no-audio");
 for (const d of ["bd", "wd", "a"]) fs.mkdirSync(path.join(OUT, d), { recursive: true });
 
-// Load .env.local
-for (const line of fs.readFileSync(path.join(ROOT, ".env.local"), "utf8").split("\n")) {
-  const m = line.match(/^([A-Z_]+)=(.*)$/);
-  if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
+// Load .env.local if there is one (values already in the environment win).
+const ENV_FILE = path.join(ROOT, ".env.local");
+if (fs.existsSync(ENV_FILE)) {
+  for (const line of fs.readFileSync(ENV_FILE, "utf8").split("\n")) {
+    const m = line.match(/^([A-Z_]+)=(.*)$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
+  }
 }
 
 const SENTENCE_SPEEDS = [0.7, 0.75, 1, 1.15]; // every speed in the player
@@ -94,12 +99,12 @@ async function main() {
     if (exists(file)) for (const w of readJSON<{ words: { word: string }[] }>(file).words) allWords.push(w.word);
   }
 
-  // ---------- 3. Audio list ----------
+  // ---------- 3. Audio list (default voice only: the other voices are made live and cached) ----------
   const jobs = new Map<string, { text: string; speed: number; voice: string }>();
   const add = (text: string, speed: number) => {
     const t = text.trim();
     if (!t) return;
-    for (const v of VOICES) jobs.set(clipKey(t, speed, v.id), { text: t, speed, voice: v.id });
+    jobs.set(clipKey(t, speed, DEFAULT_VOICE), { text: t, speed, voice: DEFAULT_VOICE });
   };
   for (const s of sentences) {
     for (const sp of SENTENCE_SPEEDS) add(s.text, sp);
@@ -115,31 +120,38 @@ async function main() {
   }
   for (const w of allWords) add(w, 1);
 
+  // Clips from another voice or an older engine are never played: delete them.
+  const stale = fs.readdirSync(path.join(OUT, "a")).filter((f) => !jobs.has(f.replace(/\.(mp3|json)$/, "")));
+  if (stale.length) {
+    if (DRY) console.log(`Would delete ${stale.length} old audio files`);
+    else {
+      for (const f of stale) fs.unlinkSync(path.join(OUT, "a", f));
+      console.log(`Deleted ${stale.length} old audio files (another voice or engine)`);
+    }
+  }
+
   const todo = [...jobs.entries()].filter(([k]) => !exists(path.join(OUT, "a", `${k}.json`)));
   const chars = todo.reduce((n, [, j]) => n + j.text.length, 0);
-  console.log(`Audio clips: ${jobs.size} total, ${todo.length} to make, ~${chars} voice characters`);
+  console.log(`Audio clips (${TTS.model}, voice ${DEFAULT_VOICE}): ${jobs.size} total, ${todo.length} to make, ~${chars} voice characters`);
 
-  if (!DRY && !NO_AUDIO) {
-    const key = process.env.ELEVENLABS_API_KEY!;
-    const model = process.env.ELEVENLABS_MODEL || "eleven_multilingual_v2";
+  if (!DRY && !NO_AUDIO && todo.length) {
+    const key = process.env.ELEVENLABS_API_KEY;
+    if (!key) throw new Error("ELEVENLABS_API_KEY is missing (environment or .env.local)");
     let done = 0;
-    await pool(todo, 4, async ([k, j]) => {
+    // 3 at a time: the smaller ElevenLabs plans allow only a few requests at once.
+    await pool(todo, 3, async ([k, j]) => {
       const data = await retry(async () => {
         const res = await fetch(
           `https://api.elevenlabs.io/v1/text-to-speech/${j.voice}/with-timestamps?output_format=mp3_44100_128`,
           {
             method: "POST",
             headers: { "xi-api-key": key, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              text: j.text,
-              model_id: model,
-              voice_settings: { stability: 0.45, similarity_boost: 0.8, style: 0.2, use_speaker_boost: true, speed: j.speed },
-            }),
+            body: JSON.stringify(ttsBody(j.text, j.speed)),
           }
         );
         if (!res.ok) throw new Error(`TTS ${res.status} ${(await res.text()).slice(0, 200)}`);
         return (await res.json()) as { audio_base64: string; alignment?: Alignment; normalized_alignment?: Alignment };
-      }, 4);
+      }, 5);
       fs.writeFileSync(path.join(OUT, "a", `${k}.mp3`), Buffer.from(data.audio_base64, "base64"));
       fs.writeFileSync(path.join(OUT, "a", `${k}.json`), JSON.stringify(toWords(data.alignment ?? data.normalized_alignment)));
       if (++done % 25 === 0) console.log(`  audio ${done}/${todo.length}`);

@@ -90,7 +90,7 @@ export const PHRASES: PhraseEntry[] = PACKS.flatMap((p) => p.phrases.map((text) 
 export const phraseBySlug = (slug: string) => PHRASES.find((p) => p.slug === slug) ?? null;
 
 const BAKED_DIR = path.join(process.cwd(), "public", "baked");
-const audioSet = new Set(BAKED.a);
+const audioSet = new Set<string>(BAKED.a);
 
 function readJSON<T>(file: string): T | null {
   try {
@@ -113,7 +113,7 @@ export function loadWords(text: string): WordInfo[] {
   return readJSON<{ words: WordInfo[] }>(path.join(BAKED_DIR, "wd", `${textKey(text)}.json`))?.words ?? [];
 }
 
-/** URL of the pre-generated clip in the teacher's voice, or null if it wasn't baked. */
+/** URL of the pre-generated clip in the default voice, or null if it wasn't baked. */
 export function audioFor(text: string, speed: number): string | null {
   const k = clipKey(text, speed, DEFAULT_VOICE);
   return audioSet.has(k) ? `/baked/a/${k}.mp3` : null;

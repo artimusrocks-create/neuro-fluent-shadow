@@ -46,7 +46,7 @@ import {
 } from "@/lib/client";
 import { PACKS, Pack, packGradient, phraseOfTheDay } from "@/lib/packs";
 import { BADGES, getState, isDue, mergeRemote, missionProgress, onBadges, onChange, setSettings, streak, track, useProgress } from "@/lib/progress";
-import { DEFAULT_VOICE, VOICES } from "@/lib/voices";
+import { VOICES, pickVoice } from "@/lib/voices";
 
 // The only place for jokes: «Совет дня».
 const TIPS = [
@@ -303,7 +303,7 @@ export default function Page() {
   const mission = missionProgress(progress);
   const st = streak(progress);
   const feedback = me?.recs.filter((r) => r.feedback).length ?? 0;
-  const voice = settings.voice || DEFAULT_VOICE;
+  const voice = pickVoice(settings.voice);
   const filteredPacks = PACKS.filter((p) => !search.trim() || (p.title + " " + p.blurb + " " + p.phrases.join(" ")).toLowerCase().includes(search.toLowerCase()));
   const sortedLib = [...progress.library].sort((a, b) => (isDue(a) === isDue(b) ? a.due.localeCompare(b.due) : isDue(a) ? -1 : 1));
   const current = queue?.items[queue.index];

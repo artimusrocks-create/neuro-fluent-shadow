@@ -15,6 +15,7 @@ Object.assign(process.env, {
   ANTHROPIC_API_KEY: "test",
   ANTHROPIC_BASE_URL: base,
   ELEVENLABS_API_KEY: "test",
+  // The removed cloned voice, as it may still be set in Vercel: the app must ignore it (see speak.test.ts).
   ELEVENLABS_VOICE_ID: "Os4ZX8JiIw21ZTNqYl53",
   ELEVENLABS_BASE_URL: base,
   TELEGRAM_BOT_TOKEN: "123:TEST",

@@ -31,9 +31,10 @@ export type WordInfo = {
 // ---------- Baked (pre-generated) pack content ----------
 import BAKED from "./baked-index.json";
 import { clipKey, textKey } from "./bakekey";
-import { DEFAULT_VOICE } from "./voices";
+import { pickVoice } from "./voices";
 
-const bakedSet = { bd: new Set(BAKED.bd), wd: new Set(BAKED.wd), a: new Set(BAKED.a) };
+// Typed by hand: an empty list in the JSON (nothing baked yet) would otherwise become never[].
+const bakedSet = { bd: new Set<string>(BAKED.bd), wd: new Set<string>(BAKED.wd), a: new Set<string>(BAKED.a) };
 /** True when this phrase ships pre-generated with the app (no AI call, no free-limit cost). */
 export const isBaked = (text: string) => bakedSet.bd.has(textKey(text));
 async function getStatic<T>(url: string): Promise<T | null> {
@@ -169,7 +170,8 @@ export async function fetchScoreWords(take: Blob): Promise<{ text: string; words
 }
 
 const clipCache = new Map<string, Promise<Clip>>();
-export function fetchClip(text: string, speed: number, voice = ""): Promise<Clip> {
+export function fetchClip(text: string, speed: number, picked = ""): Promise<Clip> {
+  const voice = pickVoice(picked);
   const key = `${voice}|${speed}|${text}`;
   const hit = clipCache.get(key);
   if (hit) return hit;
@@ -179,7 +181,7 @@ export function fetchClip(text: string, speed: number, voice = ""): Promise<Clip
       const url = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
       return { url, words: words ?? [] };
     });
-  const bk = clipKey(text, speed, voice || DEFAULT_VOICE);
+  const bk = clipKey(text, speed, voice);
   const p: Promise<Clip> = bakedSet.a.has(bk)
     ? getStatic<WordTiming[]>(`/baked/a/${bk}.json`).then((words) => (words ? { url: `/baked/a/${bk}.mp3`, words } : live()))
     : live();

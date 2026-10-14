@@ -1,5 +1,6 @@
 // Keys for pre-generated ("baked") content. Shared by the bake script and the app,
 // so both compute the same file name for the same phrase / clip.
+import { TTS_TAG } from "./voices";
 
 function fnv(s: string, seed: number): string {
   let h = seed >>> 0;
@@ -13,4 +14,5 @@ const key = (s: string) => fnv(s, 2166136261) + fnv(s, 0x9747b28c);
 const norm = (t: string) => t.trim().replace(/\s+/g, " ");
 
 export const textKey = (text: string) => key(norm(text).toLowerCase());
-export const clipKey = (text: string, speed: number, voice: string) => key(`${voice}|${speed}|${norm(text)}`);
+/** Includes the voice engine, so a clip made with an older model or settings never matches. */
+export const clipKey = (text: string, speed: number, voice: string) => key(`${voice}|${TTS_TAG}|${speed}|${norm(text)}`);

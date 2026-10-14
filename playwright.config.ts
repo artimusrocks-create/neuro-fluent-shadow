@@ -13,7 +13,6 @@ export const E2E_ENV: Record<string, string> = {
   ANTHROPIC_API_KEY: "test",
   ANTHROPIC_BASE_URL: mock,
   ELEVENLABS_API_KEY: "test",
-  ELEVENLABS_VOICE_ID: "Os4ZX8JiIw21ZTNqYl53",
   ELEVENLABS_BASE_URL: mock,
   TELEGRAM_BOT_TOKEN: "123:TEST",
   TELEGRAM_API_BASE: mock,

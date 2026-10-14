@@ -1,7 +1,9 @@
 import { test, expect, Page } from "@playwright/test";
 import { createHash } from "node:crypto";
+import { DEFAULT_VOICE } from "../../lib/voices";
 
 const MOCK = "http://localhost:4010";
+const OLD_CLONE = "Os4ZX8JiIw21ZTNqYl53"; // the teacher's cloned voice, removed in October 2026
 const TG_SECRET = createHash("sha256").update("123:TEST").digest("hex").slice(0, 32);
 
 /** Keep tests offline: block anything that isn't our app or the mock services. Collect real errors. */
@@ -88,6 +90,31 @@ test("a link to one phrase opens it straight away", async ({ page }) => {
   await prepare(page);
   await page.goto(`/?p=${encodeURIComponent("Can I get a coffee to go?")}`);
   await expect(page.getByRole("dialog", { name: "Тренировка" }).getByText("Фраза · 1 из 1")).toBeVisible();
+});
+
+test("voice: the old teacher voice saved in a browser becomes the new default, and audio loads before «Слушать»", async ({ page, request }) => {
+  const errors = await prepare(page);
+  // Someone who picked the cloned teacher voice before it was removed.
+  await page.addInitScript((old) => {
+    if (!localStorage.getItem("nf-progress-v1")) localStorage.setItem("nf-progress-v1", JSON.stringify({ settings: { voice: old } }));
+  }, OLD_CLONE);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Меню и настройки" }).click();
+  const settings = page.getByRole("dialog", { name: "Настройки" });
+  await expect(settings.getByRole("button", { name: /Белла/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(settings.getByRole("button", { name: /Артём/ })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(settings).toBeHidden();
+
+  await page.getByLabel("Фраза на английском").fill("Could you walk me through it?");
+  await page.getByRole("button", { name: "Разобрать" }).click();
+  await expect(page.getByRole("dialog", { name: "Тренировка" })).toBeVisible();
+  // Nobody tapped «Слушать» yet: the clip is already being made, in the default voice.
+  const voices = async () =>
+    ((await (await request.get(`${MOCK}/__calls?service=elevenlabs`)).json()) as { kind: string; voice: string }[]).filter((c) => c.kind === "tts").map((c) => c.voice);
+  await expect.poll(voices).toContain(DEFAULT_VOICE);
+  expect(await voices()).not.toContain(OLD_CLONE);
+  expect(errors).toEqual([]);
 });
 
 test("after 5 free phrases the Pro offer appears with both ways to pay", async ({ page }) => {

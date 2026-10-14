@@ -260,15 +260,8 @@ function wordsFor(sentence) {
       .map((w) => ({ word: w, type: "content", ru: "перевод", sound: w.toUpperCase(), nuance: "Тест.", etymology: "Тест.", etymology_unsure: false, collocations: [] })),
   };
 }
-const SAMPLE_MP3 = (() => {
-  try {
-    const dir = path.join(ROOT, "public", "baked", "a");
-    const f = fs.readdirSync(dir).find((x) => x.endsWith(".mp3"));
-    return fs.readFileSync(path.join(dir, f)).toString("base64");
-  } catch {
-    return "";
-  }
-})();
+// 0.6 s of silence: the fake voice service returns it for every phrase.
+const SAMPLE_MP3 = fs.readFileSync(path.join(ROOT, "tests", "fixtures", "sample.mp3")).toString("base64");
 function alignmentFor(text) {
   const chars = [...text];
   return { characters: chars, character_start_times_seconds: chars.map((_, i) => i * 0.05), character_end_times_seconds: chars.map((_, i) => i * 0.05 + 0.05) };
@@ -338,7 +331,15 @@ export function createMockServer() {
     // --- ElevenLabs ---
     if (/^\/v1\/text-to-speech\/[^/]+\/with-timestamps$/.test(p)) {
       const body = json() ?? {};
-      record("elevenlabs", { kind: "tts", text: body.text });
+      record("elevenlabs", {
+        kind: "tts",
+        text: body.text,
+        voice: decodeURIComponent(p.split("/")[3]),
+        model: body.model_id,
+        language: body.language_code,
+        settings: body.voice_settings,
+        format: url.searchParams.get("output_format"),
+      });
       return send(res, 200, { audio_base64: SAMPLE_MP3, alignment: alignmentFor(String(body.text ?? "")) });
     }
     if (p === "/v1/speech-to-text") {

@@ -42,7 +42,7 @@ import {
 import { scoreTake, ScoreResult } from "@/lib/score";
 import { libId, review, setSettings, toggleSave, track, useProgress } from "@/lib/progress";
 import { renderReel } from "@/lib/reels";
-import { DEFAULT_VOICE, VOICES } from "@/lib/voices";
+import { VOICES, pickVoice } from "@/lib/voices";
 import Sheet from "./ui/Sheet";
 import ReportButton from "./ui/ReportButton";
 import Waveform from "./Waveform";
@@ -97,7 +97,7 @@ export default function Practice(props: Props) {
   const { item: s, loading, loadError, label, index, total, fromLibrary, canSend, onPrev, onNext, onClose, onRetry, onPasscodeNeeded } = props;
   const progress = useProgress();
   const { gap, hide, cyrillic, tips } = progress.settings;
-  const voice = progress.settings.voice || DEFAULT_VOICE;
+  const voice = pickVoice(progress.settings.voice);
   const saved = !!s && progress.library.some((x) => x.id === libId(s.text));
 
   const words = useMemo(() => (s ? splitWords(s.text) : []), [s]);
@@ -134,6 +134,11 @@ export default function Practice(props: Props) {
   const [reel, setReel] = useState<{ p: number; done?: boolean } | null>(null);
 
   useEffect(() => () => stopAll(), []);
+  // Start making the audio as soon as the phrase is on screen, so «Слушать» usually plays with no wait.
+  // A failure here is ignored: pressing a button asks again and shows the error then.
+  useEffect(() => {
+    if (s?.text) fetchClip(s.text, speed.tts, voice).catch(() => {});
+  }, [s?.text, speed.tts, voice]);
   const veiled = hide && !revealed;
 
   function handleError(e: unknown) {

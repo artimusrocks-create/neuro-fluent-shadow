@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { jsonError } from "@/lib/server";
 import { CONTACT_URL, getWho, isResponse, mayVoice, useChars, useLimit } from "@/lib/auth";
 import { blobPut, blobReadText, hasBlob, hash, redis, Stored } from "@/lib/store";
-import { isKnownVoice } from "@/lib/voices";
+import { TTS_TAG, pickVoice, ttsBody } from "@/lib/voices";
 
 const elevenBase = () => process.env.ELEVENLABS_BASE_URL || "https://api.elevenlabs.io";
 
@@ -46,8 +46,7 @@ export async function POST(req: Request) {
   if (isResponse(who)) return who;
 
   const apiKey = process.env.ELEVENLABS_API_KEY;
-  const fallbackVoice = process.env.ELEVENLABS_VOICE_ID;
-  if (!apiKey || !fallbackVoice) return jsonError("На сервере не задан ключ или голос ElevenLabs.", 500);
+  if (!apiKey) return jsonError("На сервере не задан ключ ElevenLabs.", 500);
 
   let body: { text?: string; speed?: number; voice?: string };
   try {
@@ -59,12 +58,12 @@ export async function POST(req: Request) {
   if (!text) return jsonError("Нечего озвучивать.", 400);
   if (text.length > 600) return jsonError("Озвучка работает с одной фразой за раз.", 400);
   const speed = clampSpeed(Number(body.speed ?? 1));
-  const voiceId = body.voice && isKnownVoice(body.voice) ? body.voice : fallbackVoice;
-  const model = process.env.ELEVENLABS_MODEL || "eleven_multilingual_v2";
+  // Only voices from lib/voices.ts. An old saved choice (a voice that was removed) gets the default voice.
+  const voiceId = pickVoice(body.voice);
 
-  // Cache: the same text + speed + voice is generated once, then served from storage for free.
+  // Cache: the same text + speed + voice + engine is generated once, then served from storage for free.
   const r = redis();
-  const cacheKey = `tts:${hash(`${voiceId}|${model}|${speed}|${text}`)}`;
+  const cacheKey = `tts:${hash(`${voiceId}|${TTS_TAG}|${speed}|${text}`)}`;
   if (r && hasBlob()) {
     const ptr = await r.get<Stored>(cacheKey).catch(() => null);
     if (ptr) {
@@ -87,11 +86,7 @@ export async function POST(req: Request) {
     {
       method: "POST",
       headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text,
-        model_id: model,
-        voice_settings: { stability: 0.45, similarity_boost: 0.8, style: 0.2, use_speaker_boost: true, speed },
-      }),
+      body: JSON.stringify(ttsBody(text, speed)),
     }
   );
 
