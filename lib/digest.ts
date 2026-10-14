@@ -28,6 +28,8 @@ export async function digestText(): Promise<string> {
     `✅ Оплаты: ${n("pay_new")} новых, ${n("pay_renew")} продлений`,
     `💰 Выручка: ${fmtMoney(y.revenue)}`,
     `⭐ Активных Pro сейчас: ${active}`,
+    ...(n("tg_qa") + n("tg_qa_group") ? [`🤖 Вопросов боту: ${n("tg_qa") + n("tg_qa_group")} (из них в группах: ${n("tg_qa_group")})`] : []),
+    ...(n("tg_start_qa") + n("tg_start_channel") ? [`➡️ Пришли в бота из групп: ${n("tg_start_qa")}, из канала: ${n("tg_start_channel")}`] : []),
     ...(n("report_ai") ? [`🚩 Жалоб на разборы: ${n("report_ai")} (смотри /teacher → Входящие)`] : []),
     ...(n("delete_request") ? [`🗑 Просят удалить данные: ${n("delete_request")} — срок 30 дней`] : []),
   ].join("\n");

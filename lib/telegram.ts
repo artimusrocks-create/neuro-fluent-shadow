@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { redis } from "./store";
 import { phraseOfTheDay } from "./packs";
-import { SITE_URL } from "./site";
+import { SITE_URL, TELEGRAM_BOT } from "./site";
 
 export const tgConfigured = () => !!process.env.TELEGRAM_BOT_TOKEN;
 export const tgSecret = () => createHash("sha256").update(process.env.TELEGRAM_BOT_TOKEN ?? "").digest("hex").slice(0, 32);
@@ -20,8 +20,24 @@ export async function tg(method: string, payload: Record<string, unknown>) {
   return data.result;
 }
 
-/** Updates the bot needs: messages, the pre-checkout step of Stars payments, and subscription changes (cancel / failed renewal). */
-export const BOT_UPDATES = ["message", "pre_checkout_query", "subscription"];
+/**
+ * Updates the bot needs: messages, the pre-checkout step of Stars payments, subscription changes (cancel / failed renewal),
+ * and its own membership changes (made admin of the teacher's channel, added to a group).
+ */
+export const BOT_UPDATES = ["message", "pre_checkout_query", "subscription", "my_chat_member"];
+
+/** The bot's @username without the @: what Telegram reported at setup, else the configured name. */
+export async function botUsername(): Promise<string> {
+  const r = redis();
+  return ((r && (await r.get<string>("cfg:bot"))) || TELEGRAM_BOT).replace(/^@/, "");
+}
+
+/** The teacher's own Telegram chat (set with /admin), where alerts go. */
+export async function teacherChat(): Promise<string | null> {
+  const r = redis();
+  const chat = process.env.TEACHER_CHAT_ID || (r ? await r.get<string>("cfg:adminChat") : null);
+  return chat ? String(chat) : null;
+}
 
 /** Point the bot at this app: webhook, menu button, commands. Safe to run again any time. */
 export async function setupTelegram(origin: string) {
@@ -33,6 +49,7 @@ export async function setupTelegram(origin: string) {
     commands: [
       { command: "start", description: "Открыть тренажёр" },
       { command: "phrase", description: "Фраза дня" },
+      { command: "ask", description: "Вопрос про английский" },
       { command: "pro", description: "Shadow Pro: больше фраз каждый день" },
       { command: "code", description: "Моя личная ссылка (для Pro)" },
       { command: "paysupport", description: "Вопросы по оплате" },
@@ -41,7 +58,7 @@ export async function setupTelegram(origin: string) {
     ],
   });
   await tg("setMyDescription", {
-    description: "Neuro-Fluent Shadow: тренажёр американского произношения. Слушаешь, повторяешь, получаешь оценку.",
+    description: "Neuro-Fluent Shadow: тренажёр американского произношения. Слушаешь, повторяешь, получаешь оценку. А ещё отвечаю на вопросы про английский: просто напиши.",
   }).catch(() => {});
   const me = (await tg("getMe", {})) as { username?: string };
   if (r && me.username) await r.set("cfg:bot", me.username);

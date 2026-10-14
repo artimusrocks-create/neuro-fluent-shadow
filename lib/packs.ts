@@ -162,9 +162,20 @@ export const packGradient = (p: Pack) =>
 
 export const ALL_PHRASES = PACKS.flatMap((p) => p.phrases.map((text) => ({ text, pack: p })));
 
+const dayNumber = (date: Date) => {
+  const start = new Date(date.getFullYear(), 0, 0).getTime();
+  return Math.floor((date.getTime() - start) / 86400000) + date.getFullYear() * 400;
+};
+
 /** Same phrase for everyone on a given day. */
 export function phraseOfTheDay(date = new Date()) {
-  const start = new Date(date.getFullYear(), 0, 0).getTime();
-  const day = Math.floor((date.getTime() - start) / 86400000) + date.getFullYear() * 400;
-  return ALL_PHRASES[day % ALL_PHRASES.length];
+  return ALL_PHRASES[dayNumber(date) % ALL_PHRASES.length];
+}
+
+/** One-sentence pack phrases: each has exactly one pre-made clip, so a channel post can carry its audio. */
+const SINGLE_SENTENCE = ALL_PHRASES.filter((p) => !/[.!?…]["»”]?\s+\S/.test(p.text.trim()));
+
+/** The phrase the Telegram channel gets today. */
+export function channelPhraseOfTheDay(date = new Date()) {
+  return SINGLE_SENTENCE[dayNumber(date) % SINGLE_SENTENCE.length];
 }

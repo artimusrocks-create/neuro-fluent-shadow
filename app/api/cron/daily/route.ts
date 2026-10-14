@@ -3,6 +3,7 @@ import { dayKey, redis } from "@/lib/store";
 import { dailyText, healWebhook, sendWithApp, tgConfigured } from "@/lib/telegram";
 import { notifyTeacher } from "@/lib/pro";
 import { digestText } from "@/lib/digest";
+import { postPhraseToChannel } from "@/lib/channel";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -27,6 +28,15 @@ export async function GET(req: Request) {
   // The teacher's report goes first, so a long broadcast can never swallow it.
   await notifyTeacher(await digestText());
 
+  // «Фраза дня» in the teacher's channel, if one is connected. A failure is reported, never fatal.
+  let channel: { ok: boolean; note: string } = { ok: false, note: "not run" };
+  try {
+    channel = await postPhraseToChannel();
+  } catch (e) {
+    channel = { ok: false, note: e instanceof Error ? e.message : String(e) };
+    await notifyTeacher(`Не получилось опубликовать фразу дня в канал: ${channel.note}`);
+  }
+
   // «Фраза дня»: 25 messages a second (Telegram allows ~30), until time runs out.
   const subs = await r.smembers("tg:subs");
   const text = dailyText();
@@ -43,5 +53,5 @@ export async function GET(req: Request) {
     }
     await new Promise((res) => setTimeout(res, 1000));
   }
-  return NextResponse.json({ ok: true, sent, of: subs.length });
+  return NextResponse.json({ ok: true, sent, of: subs.length, channel });
 }

@@ -2,13 +2,24 @@ import { NextResponse } from "next/server";
 import { redis } from "@/lib/store";
 import { isActive, Student } from "@/lib/auth";
 import { count } from "@/lib/analytics";
-import { appBase, dailyText, sendWithApp, tg, tgConfigured, tgSecret } from "@/lib/telegram";
+import { appBase, appUrlFor, botUsername, dailyText, healWebhook, sendWithApp, teacherChat, tg, tgConfigured, tgSecret } from "@/lib/telegram";
 import { InProgress, fmtDate, grantPro, logPay, notifyTeacher, once, patchStudent, personalLink, setClaim, starsInvoiceLink, starsPrice } from "@/lib/pro";
+import { connectPendingChannel, onChannelMembership, postPhraseToChannel } from "@/lib/channel";
+import { askEnglishHelper, groupQuestion, takeQuestion } from "@/lib/qa";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-type TgUser = { id: number; first_name?: string; username?: string };
+type TgUser = { id: number; first_name?: string; username?: string; is_bot?: boolean };
+type Chat = { id: number; type?: string; title?: string; username?: string };
+type Message = {
+  message_id?: number;
+  chat: Chat;
+  text?: string;
+  from?: TgUser;
+  successful_payment?: SuccessfulPayment;
+  reply_to_message?: { from?: TgUser };
+};
 type SuccessfulPayment = {
   currency: string;
   total_amount: number;
@@ -19,10 +30,13 @@ type SuccessfulPayment = {
   is_first_recurring?: boolean;
 };
 type Update = {
-  message?: { chat: { id: number }; text?: string; from?: TgUser; successful_payment?: SuccessfulPayment };
+  update_id?: number;
+  message?: Message;
   pre_checkout_query?: { id: string; from: TgUser; currency: string; total_amount: number; invoice_payload: string };
   // Bot API: a user cancelled, re-enabled, or failed to pay a Stars subscription
   subscription?: { user: TgUser; invoice_payload: string; state: "canceled" | "active" | "failed" | string };
+  // The bot's own role in a chat changed: made a channel admin, added to a group, removed
+  my_chat_member?: { chat: Chat; from: TgUser; old_chat_member?: { status: string }; new_chat_member: { status: string; can_post_messages?: boolean } };
 };
 
 const DAY = 86400000;
@@ -33,7 +47,22 @@ const WELCOME = (name: string) =>
 
 Вставляешь английскую фразу, слушаешь, как её реально говорят, повторяешь следом и получаешь оценку произношения.
 
-Каждое утро буду присылать «Фразу дня». Отписаться — /stop.`;
+Каждое утро буду присылать «Фразу дня». Отписаться — /stop.
+
+Ещё можно просто написать мне вопрос про английский: как что-то сказать, чем отличаются слова, где ошибка.`;
+
+const GROUP_HELLO = (bot: string) =>
+  `Всем привет! Я помогаю с английским 🇺🇸
+
+Спросите, упомянув меня: @${bot} как сказать «я опаздываю на пять минут»?
+Или ответьте на моё сообщение. Отвечаю коротко и по-русски.`;
+
+const HINT = (bot: string, inGroup: boolean) =>
+  inGroup
+    ? `Напиши вопрос после упоминания, например: @${bot} как сказать «я опаздываю» по-английски?`
+    : "Напиши вопрос про английский, например: как сказать «я опаздываю» по-английски?";
+
+const MEMBER = ["member", "administrator"];
 
 const PITCH = (stars: number) =>
   `Shadow Pro — это 25 своих фраз в день вместо пяти, разбор каждого слова и прогресс на всех устройствах.
@@ -112,6 +141,41 @@ async function applyPayment(chatId: number, from: TgUser, sp: SuccessfulPayment)
   await notifyTeacher(`${renewal ? "🔁 Продление" : "💸 Новый Pro"} (звёзды): ${from.username ? "@" + from.username : from.first_name ?? from.id} — ${sp.total_amount} ⭐`);
 }
 
+/** Answer a question about English, in a private chat or (when addressed) in a group. */
+async function answer(update: Update, msg: Message, question: string, inGroup: boolean) {
+  const r = redis();
+  const chatId = msg.chat.id;
+  const bot = await botUsername();
+  const thread = msg.message_id ? { reply_parameters: { message_id: msg.message_id, allow_sending_without_reply: true } } : {};
+  if (!question) {
+    await tg("sendMessage", { chat_id: chatId, text: HINT(bot, inGroup), ...thread });
+    return;
+  }
+  // Telegram re-sends an update it thinks got lost: answer (and pay for) each one once.
+  if (r && typeof update.update_id === "number" && !(await r.set(`tgupd:${update.update_id}`, 1, { nx: true, ex: 86400 }))) return;
+  const person = msg.from?.id ?? chatId;
+  const verdict = await takeQuestion(person, inGroup ? chatId : null, !!(await activePro(msg.from?.id)));
+  if (verdict === "quiet") return;
+  if (verdict === "capped") {
+    await tg("sendMessage", { chat_id: chatId, text: "На сегодня лимит вопросов исчерпан, завтра отвечу снова 🙂", ...thread });
+    return;
+  }
+  await quiet(tg("sendChatAction", { chat_id: chatId, action: "typing" }));
+  let text: string;
+  try {
+    text = await askEnglishHelper(question);
+    await count(inGroup ? "tg_qa_group" : "tg_qa");
+  } catch (e) {
+    console.error("qa failed", e);
+    text = "Не получилось ответить прямо сейчас. Попробуй через минуту.";
+  }
+  // A group can't open the app inside Telegram, so it gets a link to the bot; a private chat opens the app.
+  const reply_markup = inGroup
+    ? { inline_keyboard: [[{ text: "🎧 Тренажёр произношения", url: `https://t.me/${bot}?start=qa` }]] }
+    : { inline_keyboard: [[{ text: "🎧 Потренировать произношение", web_app: { url: await appUrlFor(chatId) } }]] };
+  await tg("sendMessage", { chat_id: chatId, text, ...thread, reply_markup });
+}
+
 /** Telegram calls this for every message to the bot and for every Stars checkout. */
 export async function POST(req: Request) {
   // No bot token → no bot. (Otherwise the "secret" would be derived from an empty token and be guessable.)
@@ -139,6 +203,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
+  // The bot's own role changed: the teacher made it a channel admin, or someone added it to a group.
+  if (update.my_chat_member) {
+    const m = update.my_chat_member;
+    try {
+      if (m.chat.type === "channel") {
+        await onChannelMembership(m.chat, m.from.id, m.new_chat_member.status, m.new_chat_member.can_post_messages);
+      } else if ((m.chat.type === "group" || m.chat.type === "supergroup") && MEMBER.includes(m.new_chat_member.status) && !MEMBER.includes(m.old_chat_member?.status ?? "")) {
+        await count("tg_group_add");
+        await quiet(tg("sendMessage", { chat_id: m.chat.id, text: GROUP_HELLO(await botUsername()) }));
+      }
+    } catch (e) {
+      console.error("membership update failed", e);
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   const msg = update.message;
   if (!msg?.chat?.id) return NextResponse.json({ ok: true });
   const chatId = msg.chat.id;
@@ -151,10 +231,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
+    // In groups the bot speaks only when spoken to: a mention, a reply to it, or /ask.
+    if (msg.chat.type === "group" || msg.chat.type === "supergroup") {
+      const question = groupQuestion(msg, await botUsername());
+      if (question !== null) await answer(update, msg, question, true);
+      return NextResponse.json({ ok: true });
+    }
+
     if (text.startsWith("/start")) {
       const arg = text.split(/\s+/)[1] ?? "";
       if (r) await r.sadd("tg:subs", String(chatId));
       await count("tg_start");
+      if (arg === "qa" || arg === "channel") await count(`tg_start_${arg}`);
       if (arg === "pro" || arg.startsWith("pro_")) {
         await sendPitch(chatId, arg.startsWith("pro_") ? arg.slice(4) : undefined, msg.from);
         return NextResponse.json({ ok: true });
@@ -186,14 +274,30 @@ export async function POST(req: Request) {
       if (pass && pass === process.env.APP_PASSCODE && r) {
         await r.set("cfg:adminChat", String(chatId));
         await tg("sendMessage", { chat_id: chatId, text: "Готово. Сюда будут приходить оплаты и утренний отчёт." });
+        // Make sure Telegram tells the bot when it becomes a channel admin, then connect a channel added earlier.
+        await healWebhook();
+        await connectPendingChannel(msg.from?.id ?? chatId);
       } else {
         await tg("sendMessage", { chat_id: chatId, text: "Не тот пароль." });
       }
+    } else if (text.startsWith("/post")) {
+      // Teacher only: publish today's phrase to the connected channel right now.
+      if ((await teacherChat()) !== String(chatId)) {
+        await tg("sendMessage", { chat_id: chatId, text: "Эта команда только для преподавателя." });
+      } else {
+        const res = await postPhraseToChannel().catch((e: Error) => ({ ok: false, note: e.message }));
+        await tg("sendMessage", { chat_id: chatId, text: res.ok ? `Опубликовано: ${res.note}` : `Не получилось: ${res.note}. Канал подключается так: сделай бота админом своего канала.` });
+      }
+    } else if (text.startsWith("/ask")) {
+      await answer(update, msg, text.replace(/^\/ask(@\w+)?/i, "").trim(), false);
     } else if (text.startsWith("/phrase")) {
       await sendWithApp(chatId, dailyText(), "🎧 Разобрать и повторить");
     } else if (text.startsWith("/stop")) {
       if (r) await r.srem("tg:subs", String(chatId));
       await sendWithApp(chatId, "Готово, утренних сообщений больше не будет. Вернуть: /start");
+    } else if (text && !text.startsWith("/")) {
+      // Anything else typed in the bot's chat is a question about English.
+      await answer(update, msg, text, false);
     } else {
       await sendWithApp(chatId, "Открой тренажёр кнопкой ниже 👇");
     }

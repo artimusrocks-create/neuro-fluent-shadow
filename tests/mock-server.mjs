@@ -312,7 +312,20 @@ export function createMockServer() {
       const body = json() ?? {};
       const system = Array.isArray(body.system) ? body.system.map((b) => b.text).join("\n") : String(body.system ?? "");
       const user = String(body.messages?.[0]?.content ?? "");
-      record("anthropic", { system: system.slice(0, 80), user: user.slice(0, 200) });
+      record("anthropic", { system: system.slice(0, 80), user: user.slice(0, 200), model: body.model });
+      // The bot's English helper gets a plain-text answer (with markdown it should strip).
+      if (/помощник по английскому в Telegram/.test(system)) {
+        return send(res, 200, {
+          id: "msg_mock_qa",
+          type: "message",
+          role: "assistant",
+          model: body.model ?? "mock",
+          content: [{ type: "text", text: "Говорят **to go**: Can I get a latte to go? ☕" }],
+          stop_reason: "end_turn",
+          stop_sequence: null,
+          usage: { input_tokens: 10, output_tokens: 10 },
+        });
+      }
       const input = user.replace(/^(INPUT|PHRASE):\n/, "");
       const isWords = /word-by-word/.test(system + user);
       const out = isWords ? wordsFor(input) : breakdownFor(input);
