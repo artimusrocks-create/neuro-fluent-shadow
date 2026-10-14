@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { POST } from "@/app/api/telegram/route";
 import { redis } from "@/lib/store";
-import { tgSecret } from "@/lib/telegram";
+import { appBase, healWebhook, tgSecret } from "@/lib/telegram";
+import { SITE_URL } from "@/lib/site";
 import { getClaim, starsPrice } from "@/lib/pro";
 import type { Student } from "@/lib/auth";
 import { mock, req } from "./helpers";
@@ -130,5 +131,20 @@ describe("Telegram bot", () => {
     await hook(msg("/code"));
     sent = (await mock().calls("telegram")).filter((c) => c.method === "sendMessage");
     expect(String(sent.at(-1)!.body!.text)).toContain("?code=");
+  });
+
+  it("with only TELEGRAM_BOT_TOKEN set, the daily job connects the bot to the site address by itself", async () => {
+    const saved = process.env.APP_URL;
+    delete process.env.APP_URL;
+    try {
+      await redis()!.del("cfg:appUrl");
+      expect(await appBase()).toBe(SITE_URL);
+      expect(await healWebhook()).toBe(true); // the webhook was missing, so it was set up
+      const hookCall = (await mock().calls("telegram")).find((c) => c.method === "setWebhook")!;
+      expect(hookCall.body).toMatchObject({ url: `${SITE_URL}/api/telegram`, secret_token: tgSecret() });
+      expect(await redis()!.get("cfg:appUrl")).toBe(SITE_URL);
+    } finally {
+      process.env.APP_URL = saved;
+    }
   });
 });

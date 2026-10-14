@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { redis } from "./store";
 import { phraseOfTheDay } from "./packs";
+import { SITE_URL } from "./site";
 
 export const tgConfigured = () => !!process.env.TELEGRAM_BOT_TOKEN;
 export const tgSecret = () => createHash("sha256").update(process.env.TELEGRAM_BOT_TOKEN ?? "").digest("hex").slice(0, 32);
@@ -52,7 +53,8 @@ export async function healWebhook() {
   try {
     if (!tgConfigured()) return false;
     const r = redis();
-    const origin = (r && (await r.get<string>("cfg:appUrl"))) || process.env.APP_URL;
+    // Falls back to the site address, so the daily job connects the bot by itself once TELEGRAM_BOT_TOKEN is set.
+    const origin = (r && (await r.get<string>("cfg:appUrl"))) || process.env.APP_URL || SITE_URL;
     if (!origin) return false;
     const info = (await tg("getWebhookInfo", {})) as { url?: string; allowed_updates?: string[] };
     const ok = info.url === `${origin}/api/telegram` && BOT_UPDATES.every((u) => info.allowed_updates?.includes(u));
@@ -65,7 +67,7 @@ export async function healWebhook() {
 
 export async function appBase(): Promise<string> {
   const r = redis();
-  return ((r && (await r.get<string>("cfg:appUrl"))) || process.env.APP_URL || "").replace(/\/$/, "");
+  return ((r && (await r.get<string>("cfg:appUrl"))) || process.env.APP_URL || SITE_URL).replace(/\/$/, "");
 }
 
 export async function appUrlFor(chatId: number | string) {
