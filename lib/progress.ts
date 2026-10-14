@@ -54,7 +54,7 @@ const EMPTY: State = {
 // ---------- Badges ----------
 export const BADGES: { id: string; icon: string; title: string; desc: string; test: (s: State) => boolean }[] = [
   { id: "first_play", icon: "👂", title: "Первый звук", desc: "Послушал первую фразу.", test: (s) => s.counts.plays >= 1 },
-  { id: "first_echo", icon: "🦜", title: "Первое эхо", desc: "Повторил фразу в режиме «Эхо».", test: (s) => s.counts.echoes >= 1 },
+  { id: "first_echo", icon: "🦜", title: "Первое эхо", desc: "Повторил фразу за голосом.", test: (s) => s.counts.echoes >= 1 },
   { id: "first_rec", icon: "🎤", title: "Первая запись", desc: "Записал себя в первый раз.", test: (s) => s.counts.records >= 1 },
   { id: "first_score", icon: "🧪", title: "Первая оценка", desc: "Получил оценку произношения.", test: (s) => s.counts.scores >= 1 },
   { id: "score80", icon: "🗽", title: "80+", desc: "Набрал 80 баллов или больше.", test: (s) => s.best >= 80 },
@@ -83,7 +83,7 @@ export const MISSION = { reps: 3, records: 1, scores: 1 };
 export function missionProgress(s: State) {
   const t = s.today.date === todayKey() ? s.today : { reps: 0, records: 0, scores: 0 };
   const parts = [
-    { label: "Повторить 3 раза (Эхо или По кусочкам)", done: Math.min(t.reps, MISSION.reps), of: MISSION.reps },
+    { label: "Повторить за голосом 3 раза", done: Math.min(t.reps, MISSION.reps), of: MISSION.reps },
     { label: "Записать себя", done: Math.min(t.records, MISSION.records), of: MISSION.records },
     { label: "Получить оценку", done: Math.min(t.scores, MISSION.scores), of: MISSION.scores },
   ];

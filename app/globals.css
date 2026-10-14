@@ -791,3 +791,10 @@ a.pill-link, a.logo, a.wide-btn { text-decoration: none; }
 .pro-pill { color: var(--lav-ink); }
 .home .tip-line { margin-top: 6px; }
 .home .free-chip { margin: 0; border-radius: 14px; text-align: center; }
+
+/* Practice: meaning under the phrase, a label for the sound-spelling, a first-time hint */
+.ru-line { margin: 2px 0 0; color: var(--muted); font-size: 17px; line-height: 1.4; }
+.fast-label { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .02em; }
+.dock-hint { margin: 0; text-align: center; color: var(--muted); font-size: 13px; }
+/* Badge toasts never block a tap */
+.toasts { pointer-events: none; }

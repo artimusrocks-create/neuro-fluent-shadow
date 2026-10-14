@@ -37,6 +37,7 @@ Also split each sentence into 2–5 THOUGHT GROUPS ("chunks") — the natural br
 OUTPUT: reply with ONLY one JSON object, no other text, in this shape:
 {"sentences":[{
   "text": "clean original sentence",
+  "ru": "IN RUSSIAN: what it means, said the way a Russian speaker would naturally say it (not word for word)",
   "clear": "same sentence with stressed content words in CAPS",
   "fast": "connected-speech respelling; blobs glued with no spaces inside",
   "rhythm": "syllable-by-syllable, syllables of one word joined with hyphens, words separated by spaces, loud syllables in CAPS",

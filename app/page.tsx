@@ -224,8 +224,11 @@ export default function Page() {
     else if (wantPro && !isStoreApp()) setPro({ reason: "menu" });
     else if (pendingClaim()) quietClaim();
     // A link to one phrase: /?p=Can%20I%20get%20a%20coffee%20to%20go%3F
-    if (deep === "today") setQueue({ items: [{ text: phraseOfTheDay().text }], index: 0, label: "Фраза дня" });
-    else if (deep && deep.trim()) setQueue({ items: [{ text: deep.trim().slice(0, 400) }], index: 0, label: "Фраза" });
+    // A link to one phrase (Telegram channel, a phrase page) continues with the rest of its topic.
+    const d = deep === "today" ? phraseOfTheDay().text : deep?.trim().slice(0, 400);
+    const pack = d ? PACKS.find((p) => p.phrases.includes(d)) : undefined;
+    if (d && pack) setQueue({ items: pack.phrases.map((t) => ({ text: t })), index: pack.phrases.indexOf(d), label: pack.title });
+    else if (d) setQueue({ items: [{ text: d }], index: 0, label: "Фраза" });
     return onBadges((ids) => {
       setToasts((t) => [...t, ...ids]);
       setTimeout(() => setToasts((t) => t.slice(ids.length)), 4000);
@@ -426,8 +429,17 @@ export default function Page() {
                     <small>8 готовых фраз · около 5 минут</small>
                   </span>
                 </button>
-                {(mounted && due.length > 0) || me?.plan === "class" ? (
-                  <div className="hero-links">
+                <div className="hero-links">
+                  <button
+                    type="button"
+                    className="chip-link"
+                    onClick={() => {
+                      boxRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                      boxRef.current?.focus({ preventScroll: true });
+                    }}
+                  >
+                    ✍️ Вставить свой текст
+                  </button>
                     {mounted && due.length > 0 && (
                       <button type="button" className="chip-link" onClick={() => startQueue(due.map((x) => ({ text: x.s.text, s: x.s })), "Повторение", true)}>
                         <RotateCcw size={15} /> Повторить сохранённые · {due.length}
@@ -438,8 +450,7 @@ export default function Page() {
                         <Send size={15} /> От препода{feedback > 0 ? ` · ${feedback}` : ""}
                       </button>
                     )}
-                  </div>
-                ) : null}
+                </div>
               </section>
 
               {error && <p className="error-line">{error}</p>}
@@ -479,7 +490,10 @@ export default function Page() {
 
               <section className="home-sec">
                 <h2>Есть свой текст?</h2>
-                <p className="sec-sub">Вставь фразу или целый текст: письмо, статью, субтитры. Озвучу сразу и разберу по предложениям.</p>
+                <p className="sec-sub">
+                  Вставь фразу или целый текст: письмо, статью, субтитры. Озвучу сразу и разберу по предложениям.
+                  {me?.free && !store ? ` Бесплатно ${me.free.limit} предложений в день.` : ""}
+                </p>
                 <form className="prompt" onSubmit={submit}>
                   <textarea
                     ref={boxRef}
@@ -691,7 +705,7 @@ export default function Page() {
           <Switch label="Подсказки и советы" checked={settings.tips} onChange={(v) => setSettings({ tips: v })} />
           <Switch label="Кириллица в разборе" checked={settings.cyrillic} onChange={(v) => setSettings({ cyrillic: v })} />
           <label className="range-row">
-            Пауза в «Эхо» ×{settings.gap.toFixed(1)}
+            Пауза для повтора ×{settings.gap.toFixed(1)}
             <input type="range" min={0.8} max={2.5} step={0.1} value={settings.gap} onChange={(e) => setSettings({ gap: Number(e.target.value) })} />
           </label>
         </div>

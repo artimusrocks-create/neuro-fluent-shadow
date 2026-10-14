@@ -4,6 +4,7 @@
 export type Blob_ = { written: string; blob: string; rule: string };
 export type Sentence = {
   text: string;
+  ru?: string; // what it means, in Russian
   clear: string;
   fast: string;
   rhythm: string;

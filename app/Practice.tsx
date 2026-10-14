@@ -43,6 +43,7 @@ import { scoreTake, ScoreResult } from "@/lib/score";
 import { libId, review, setSettings, toggleSave, track, useProgress } from "@/lib/progress";
 import { renderReel } from "@/lib/reels";
 import { VOICES, pickVoice } from "@/lib/voices";
+import { RU } from "@/lib/ru";
 import Sheet from "./ui/Sheet";
 import ReportButton from "./ui/ReportButton";
 import Waveform from "./Waveform";
@@ -102,6 +103,10 @@ export default function Practice(props: Props) {
   const saved = !!s && progress.library.some((x) => x.id === libId(s.text));
   // Voice first: the phrase can be heard and repeated right away; stresses and linking fill in when the breakdown arrives.
   const phrase = s?.text ?? text.trim();
+  // What it means: from the breakdown, or the pack's own translation (shown right away for pack phrases).
+  const meaning = s?.ru || RU[phrase] || RU[text.trim()] || "";
+  // The rulebook's letter codes, «Флэп (E)», mean nothing to a learner: show just the name.
+  const ruleName = (r: string) => r.replace(/\s*\([A-ZА-Я]\)/g, "").trim();
 
   const words = useMemo(() => splitWords(phrase), [phrase]);
   const stressed = useMemo(() => (s ? stressFlags(s.text, s.clear) : []), [s]);
@@ -470,6 +475,7 @@ export default function Practice(props: Props) {
                 })}
               </p>
             ) : null}
+            {phrase && meaning && !veiled ? <p className="ru-line">{meaning}</p> : null}
             {loadError ? (
               <div style={{ display: "grid", gap: 12, justifyItems: "start" }}>
                 <p className="error-line" style={{ textAlign: "left" }}>
@@ -519,6 +525,8 @@ export default function Practice(props: Props) {
               </button>
             ) : (
               <>
+                {meaning && <p className="ru-line">{meaning}</p>}
+                <span className="fast-label">Как это звучит в жизни (нажми на выделенное, чтобы послушать):</span>
                 <p className="fast-big">
                   {fastParts.map((p, i) => {
                     if (!p.blob) return <span key={i}>{p.text}</span>;
@@ -575,7 +583,7 @@ export default function Practice(props: Props) {
         </div>
         <div className="chip-row">
           <button type="button" className={`chip-btn ${busy === "echo" ? "on" : ""}`} onClick={echo} disabled={!phrase}>
-            <Repeat size={16} /> {busy === "echo" ? "Стоп" : "Эхо ×3"}
+            <Repeat size={16} /> {busy === "echo" ? "Стоп" : "Повторять за голосом ×3"}
           </button>
           {busy === "build" && (
             <button type="button" className="chip-btn on" onClick={buildUp}>
@@ -583,6 +591,7 @@ export default function Practice(props: Props) {
             </button>
           )}
         </div>
+        {progress.counts.echoes === 0 && !busy && phrase && <p className="dock-hint">Голос скажет фразу, а ты повтори в паузе. Три раза подряд.</p>}
         {!isLast && (
           <button type="button" className="swipe-hint" onClick={onNext}>
             <ChevronUp size={14} /> Свайп вверх — следующая фраза
@@ -832,7 +841,7 @@ export default function Practice(props: Props) {
                       <span className="w">{b.written}</span>
                       <span className="arrow">→</span>
                       <span className="b">{b.blob}</span>
-                      <span className="r">{b.rule}</span>
+                      <span className="r">{ruleName(b.rule)}</span>
                     </li>
                   ))}
                 </ul>

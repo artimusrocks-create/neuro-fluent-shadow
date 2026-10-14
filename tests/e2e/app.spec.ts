@@ -128,7 +128,12 @@ test("the data-deletion page sends a request", async ({ page }) => {
 
 test("a link to one phrase opens it straight away", async ({ page }) => {
   await prepare(page);
+  // A pack phrase (Telegram channel post, phrase page) continues with the rest of its topic.
   await page.goto(`/?p=${encodeURIComponent("Can I get a coffee to go?")}`);
+  await expect(page.getByRole("dialog", { name: "Тренировка" }).getByText("В кафе и ресторане · 1 из 8")).toBeVisible();
+  await expect(page.getByText("Можно кофе с собой?")).toBeVisible(); // what it means, right under the phrase
+  // Any other phrase opens on its own.
+  await page.goto(`/?p=${encodeURIComponent("Let's circle back on this tomorrow.")}`);
   await expect(page.getByRole("dialog", { name: "Тренировка" }).getByText("Фраза · 1 из 1")).toBeVisible();
 });
 
