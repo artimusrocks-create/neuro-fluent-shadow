@@ -11,7 +11,8 @@ export const maxDuration = 30;
 export async function POST(req: Request) {
   const who = await getWho(req);
   if (isResponse(who)) return who;
-  if (who.role !== "student" || who.student.plan === "pro") return jsonError("Отправлять записи могут только ученики Артёма по личной ссылке.", 403);
+  if (who.role !== "student" || who.student.plan === "pro") return jsonError("Отправлять записи могут только ученики преподавателя по личной ссылке.", 403);
+  const teacher = who.student.teacher;
   const r = redis();
   if (!r || !hasBlob()) return jsonError("Хранилище для записей ещё не подключено.", 500);
 
@@ -43,10 +44,13 @@ export async function POST(req: Request) {
     score: Number.isFinite(scoreRaw) ? scoreRaw : null,
     stored,
     at: new Date().toISOString(),
+    ...(teacher ? { teacher } : {}),
   };
   await r.set(`rec:${id}`, rec);
-  await r.lpush("recs", id);
-  await r.ltrim("recs", 0, 499);
+  // The owner's inbox, or the inviting teacher's own.
+  const inbox = teacher ? `trecs:${teacher}` : "recs";
+  await r.lpush(inbox, id);
+  await r.ltrim(inbox, 0, 499);
   await r.lpush(`recs:${who.id}`, id);
   await r.ltrim(`recs:${who.id}`, 0, 99);
   return NextResponse.json({ ok: true, id });

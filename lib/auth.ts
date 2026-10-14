@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { dayKey, redis } from "./store";
 import { PACKS } from "./packs";
+import { teacherActive, type Teacher } from "./teachers";
 
 export type Kind = "breakdown" | "words" | "speak" | "score";
 export type Limits = Record<Kind, number>;
@@ -23,13 +24,22 @@ export type Student = {
   lavaParent?: string; // lava.top subscription (first contract id)
   starsCharge?: string; // last Telegram Stars charge id (needed for refunds)
   starsSub?: string; // charge id of the first payment of the Stars subscription (needed to stop renewals)
+  teacher?: string; // added by an invited teacher (lib/teachers.ts): works while that teacher's cabinet is paid
 };
 export type Who =
-  | { role: "teacher"; id: "teacher"; name: string }
+  | { role: "teacher"; id: "teacher"; name: string; teacher?: undefined } // the owner (APP_PASSCODE)
+  | { role: "teacher"; id: string; name: string; teacher: Teacher } // an invited teacher (id "t:<teacher id>")
   | { role: "student"; id: string; name: string; student: Student }
   | { role: "demo"; id: string; name: string; ip: string; lapsed?: Student };
 
 export const STUDENT_LIMITS: Limits = { breakdown: 40, words: 20, speak: 300, score: 40 };
+/** An invited teacher practising themselves. */
+export const TEACHER_LIMITS: Limits = { breakdown: 30, words: 30, speak: 400, score: 60 };
+/** A student of an invited teacher (the teacher pays a flat monthly fee, so these are capped). */
+export const TEACHER_STUDENT_LIMITS: Limits = { breakdown: 15, words: 15, speak: 300, score: 40 };
+
+/** The owner: unlimited, sees money, Telegram and every cabinet. */
+export const isOwner = (who: Who) => who.role === "teacher" && !who.teacher;
 export const PRO_LIMITS: Limits = { breakdown: 25, words: 25, speak: 400, score: 60 };
 export const DEMO_LIMITS: Limits = { breakdown: 5, words: 10, speak: 150, score: 30 };
 /** One network address (an office Wi-Fi, a phone hotspot) can't spend more than this per day, however many browsers it uses. */
@@ -54,9 +64,9 @@ export function isActive(s: Student, now = Date.now()): boolean {
 }
 
 export function limitsFor(who: Who): Limits | null {
-  if (who.role === "teacher") return null;
+  if (who.role === "teacher") return who.teacher ? TEACHER_LIMITS : null;
   if (who.role === "demo") return DEMO_LIMITS;
-  const base = who.student.plan === "pro" ? PRO_LIMITS : STUDENT_LIMITS;
+  const base = who.student.plan === "pro" ? PRO_LIMITS : who.student.teacher ? TEACHER_STUDENT_LIMITS : STUDENT_LIMITS;
   return { ...base, ...(who.student.limits ?? {}) };
 }
 
@@ -89,9 +99,15 @@ export async function getWho(req: Request): Promise<Who | NextResponse> {
   if (code && r && !guessing) {
     const id = await r.get<string>(`code:${code.toLowerCase()}`);
     if (!id) await rememberMiss(missKey, code).catch(() => 0);
-    if (id) {
+    if (id?.startsWith("t:")) {
+      // An invited teacher: the cabinet opens even after the paid time ends (to see it and renew).
+      const t = await r.hget<Teacher>("teachers", id.slice(2));
+      if (t) return { role: "teacher", id, name: t.name, teacher: t };
+    } else if (id) {
       const student = await r.hget<Student>("students", id);
-      if (student) {
+      // A teacher's student works while that teacher's cabinet is paid; then it's a free visitor like anyone.
+      const teacherOk = !student?.teacher || teacherActive(await r.hget<Teacher>("teachers", student.teacher));
+      if (student && teacherOk) {
         if (isActive(student)) {
           r.hset("seen", { [id]: new Date().toISOString() }).catch(() => {});
           return { role: "student", id, name: student.name, student };
@@ -132,7 +148,7 @@ async function bump(key: string, ttlDays: number): Promise<number> {
 
 /** Count one use of `kind` for today. Returns an error response once a daily limit is hit. */
 export async function useLimit(who: Who, kind: Kind): Promise<NextResponse | null> {
-  if (who.role === "teacher") return null;
+  if (isOwner(who)) return null;
   const r = redis();
   if (!r) return null;
   const limits = limitsFor(who)!;
@@ -165,7 +181,7 @@ export async function useLimit(who: Who, kind: Kind): Promise<NextResponse | nul
 
 /** Count `n` voice characters for today. Returns an error response once over budget. */
 export async function useChars(who: Who, n: number): Promise<NextResponse | null> {
-  if (who.role === "teacher") return null;
+  if (isOwner(who)) return null;
   const r = redis();
   if (!r) return null;
   const day = dayKey();
@@ -181,14 +197,14 @@ export async function useChars(who: Who, n: number): Promise<NextResponse | null
     }
     return null;
   }
-  const limit = who.student.plan === "pro" ? CHAR_LIMITS.pro : CHAR_LIMITS.class;
+  const limit = who.role === "teacher" || who.student.plan === "pro" ? CHAR_LIMITS.pro : CHAR_LIMITS.class;
   if ((await incr(`chars:${who.id}:${day}`)) > limit) return deny("Дневной лимит озвучки исчерпан. Продолжим завтра.", 429);
   return null;
 }
 
 /** Undo a counted use (e.g. the answer came from cache and cost nothing). */
 export async function refund(who: Who, kind: Kind) {
-  if (who.role === "teacher") return;
+  if (isOwner(who)) return;
   const r = redis();
   if (!r) return;
   await r.decr(`use:${who.id}:${dayKey()}:${kind}`).catch(() => {});

@@ -19,14 +19,27 @@ type StudentRow = {
 type ProRow = { id: string; name: string; code: string; email: string | null; tgUser: string | null; src: string | null; until: string | null; autoRenew: boolean; active: boolean; seen: string | null; canRefundStars: boolean };
 type PayRow = { at: string; src: string; kind: string; amount: number; currency: string; who: string; note?: string };
 type DayRow = { day: string; visitors: number; events: Record<string, number>; revenue: Record<string, number> };
+// Who's in the cabinet: the owner (Artem) or an invited teacher with a paid period and a number of seats.
+type Me = { owner: boolean; name: string; until?: string; active?: boolean; seats?: number; used?: number; price?: string; contact?: string; caps?: Usage };
+type TeacherRow = { id: string; name: string; seats: number; until: string; active: boolean; students: number; link: string; created: string };
 type Dash = {
+  me?: Me;
   students: StudentRow[];
   recs: MyRec[];
   telegram: { configured: boolean; subscribers: number; appUrl: string | null; bot: string | null; adminChat: boolean };
-  money: { pro: ProRow[]; log: PayRow[]; days: DayRow[]; offer: { telegram: boolean; card: boolean; stars: number; priceRub: string; priceUsd: string } };
+  money: { pro: ProRow[]; log: PayRow[]; days: DayRow[]; offer: { telegram: boolean; card: boolean; stars: number; priceRub: string; priceUsd: string } } | null;
   reports?: { kind: "ai" | "delete"; text: string; where: string; note: string; contact: string; at: string }[];
+  teachers?: TeacherRow[];
+  teacherPlan?: { price: string; seats: number; trialDays: number };
 };
-type Tab = "students" | "inbox" | "money" | "telegram";
+type Tab = "students" | "inbox" | "money" | "telegram" | "teachers" | "plan";
+
+/** The message the owner sends to a teacher he invites. */
+const inviteText = (name: string, link: string, plan?: Dash["teacherPlan"]) =>
+  `Привет, ${name}! Вот твой кабинет преподавателя в Neuro-Fluent Shadow, тренажёре американского произношения.\n\n` +
+  `Вход по ссылке, без пароля: ${link}\n\n` +
+  `Добавляешь учеников (каждый получает личную ссылку), задаёшь им фразы и слушаешь их записи. ` +
+  `${plan?.trialDays ?? 14} дней бесплатно, потом ${plan?.price ?? "1490 ₽"} в месяц за ${plan?.seats ?? 10} учеников.`;
 
 const KIND: Record<string, string> = { new: "💸 новая", renew: "🔁 продление", refund: "↩️ возврат", cancel: "🚪 отмена", fail: "⚠️ не прошла", manual: "🎁 вручную" };
 const SRC: Record<string, string> = { stars: "звёзды", lava: "карта", manual: "вручную" };
@@ -79,6 +92,8 @@ export default function Teacher() {
   const [flash, setFlash] = useState("");
   const [origin, setOrigin] = useState("");
   const [grant, setGrant] = useState({ name: "", email: "", days: 30 });
+  const [invite, setInvite] = useState({ name: "", seats: 10, days: 14 });
+  const [lastInvite, setLastInvite] = useState<{ name: string; link: string } | null>(null);
 
   // A wrong or old password (or a student's code) saved in this browser brings the password box back.
   const wrongPass = (e: unknown) => {
@@ -101,6 +116,14 @@ export default function Teacher() {
 
   useEffect(() => {
     setOrigin(window.location.origin);
+    // A teacher's invite link (/teacher?code=…) logs in by itself; the code then leaves the address bar.
+    const url = new URL(window.location.href);
+    const c = url.searchParams.get("code");
+    if (c) {
+      setPasscode(c.trim());
+      url.searchParams.delete("code");
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    }
     if (!getPasscode()) setNeedLogin(true);
     else load();
   }, [load]);
@@ -124,6 +147,10 @@ export default function Teacher() {
   }
 
   const link = (s: StudentRow) => `${origin}/?code=${s.code}`;
+  // The owner sees everything; an invited teacher (dash.me.owner === false) sees their own cabinet only.
+  const owner = dash?.me?.owner !== false;
+  const me = dash?.me;
+  const full = !!me && !me.owner && (!me.active || (me.used ?? 0) >= (me.seats ?? 0));
   const tgLink = (s: StudentRow) => (dash?.telegram.bot ? `https://t.me/${dash.telegram.bot}?start=${s.code}` : null);
   const unread = dash?.recs.filter((r) => !r.seen).length ?? 0;
 
@@ -142,14 +169,16 @@ export default function Teacher() {
             load();
           }}
         >
-          <label htmlFor="tpass">Пароль препода</label>
+          <label htmlFor="tpass">Пароль препода или код учителя</label>
           <input id="tpass" value={pass} onChange={(e) => setPass(e.target.value)} autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} />
           <button type="submit" className="go small" disabled={!pass.trim()}>
             Войти
           </button>
         </form>
         {error && <div className="status error">{error}</div>}
-        <p className="hint">Забыл пароль? Он лежит в Vercel → Settings → Environment Variables → APP_PASSCODE.</p>
+        <p className="hint">
+          Учитель? Открой ссылку-приглашение от Артёма: по ней вход без пароля. Артём, твой пароль лежит в Vercel → Settings → Environment Variables → APP_PASSCODE.
+        </p>
       </main>
     );
   }
@@ -158,7 +187,7 @@ export default function Teacher() {
     <main className="wrap wide">
       <header>
         <div className="topline">
-          <span className="brand">Neuro-Fluent Shadow · Кабинет</span>
+          <span className="brand">Neuro-Fluent Shadow · Кабинет{dash?.me && !dash.me.owner ? ` · ${dash.me.name}` : ""}</span>
           <a className="linkish" href="/">
             ← В тренажёр
           </a>
@@ -175,12 +204,23 @@ export default function Teacher() {
         <button type="button" className={tab === "inbox" ? "on" : ""} onClick={() => setTab("inbox")}>
           📥 Записи{unread ? <span className="due-badge">{unread}</span> : null}
         </button>
-        <button type="button" className={tab === "money" ? "on" : ""} onClick={() => setTab("money")}>
-          💰 Деньги{dash ? ` · ${dash.money.pro.filter((p) => p.active).length} Pro` : ""}
-        </button>
-        <button type="button" className={tab === "telegram" ? "on" : ""} onClick={() => setTab("telegram")}>
-          🤖 Telegram
-        </button>
+        {owner ? (
+          <>
+            <button type="button" className={tab === "money" ? "on" : ""} onClick={() => setTab("money")}>
+              💰 Деньги{dash?.money ? ` · ${dash.money.pro.filter((p) => p.active).length} Pro` : ""}
+            </button>
+            <button type="button" className={tab === "teachers" ? "on" : ""} onClick={() => setTab("teachers")}>
+              🧑‍🏫 Учителя{dash?.teachers?.length ? ` · ${dash.teachers.length}` : ""}
+            </button>
+            <button type="button" className={tab === "telegram" ? "on" : ""} onClick={() => setTab("telegram")}>
+              🤖 Telegram
+            </button>
+          </>
+        ) : (
+          <button type="button" className={tab === "plan" ? "on" : ""} onClick={() => setTab("plan")}>
+            💳 Подписка
+          </button>
+        )}
         <button type="button" onClick={load}>
           ↻ Обновить
         </button>
@@ -192,6 +232,11 @@ export default function Teacher() {
 
       {dash && tab === "students" && (
         <section className="results">
+          {me && !me.owner && (
+            <p className={`status ${me.active ? "" : "error"}`}>
+              {me.active ? `✅ Кабинет оплачен до ${fmtD(me.until ?? null)} · учеников ${me.used} из ${me.seats}` : `⛔ Оплаченный период закончился ${fmtD(me.until ?? null)}. Ученики пока заходят как гости. Продлить: вкладка «💳 Подписка».`}
+            </p>
+          )}
           <form
             className="box add-student"
             onSubmit={async (e) => {
@@ -203,8 +248,8 @@ export default function Teacher() {
               }
             }}
           >
-            <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Имя нового ученика, например Лена" aria-label="Имя ученика" />
-            <button type="submit" className="go small">
+            <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Имя нового ученика, например Лена" aria-label="Имя ученика" disabled={full} />
+            <button type="submit" className="go small" disabled={full}>
               + Добавить
             </button>
           </form>
@@ -296,7 +341,7 @@ export default function Teacher() {
                   {(["breakdown", "words", "speak", "score"] as const).map((k) => (
                     <label key={k}>
                       {{ breakdown: "Разборов в день", words: "Разборов по словам", speak: "Озвучек", score: "Оценок акцента" }[k]}
-                      <input type="number" min={0} max={5000} value={limitDraft[k]} onChange={(e) => setLimitDraft({ ...limitDraft, [k]: Number(e.target.value) })} />
+                      <input type="number" min={0} max={me?.caps && !me.owner ? me.caps[k] : 5000} value={limitDraft[k]} onChange={(e) => setLimitDraft({ ...limitDraft, [k]: Number(e.target.value) })} />
                     </label>
                   ))}
                   <button type="button" className="go small" onClick={() => act({ action: "limits", id: s.id, limits: limitDraft }, "Лимиты сохранены")}>
@@ -373,7 +418,7 @@ export default function Teacher() {
         </section>
       )}
 
-      {dash && tab === "money" && (
+      {dash && dash.money && tab === "money" && (
         <section className="results">
           <div className="stat-grid">
             <div className="stat">
@@ -541,7 +586,120 @@ export default function Teacher() {
         </section>
       )}
 
-      {dash && tab === "telegram" && (
+      {dash && owner && tab === "teachers" && (
+        <section className="results">
+          <form
+            className="pack sedit"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const res = (await act({ action: "teacherCreate", ...invite }, "Учитель добавлен, сообщение скопировано")) as { link?: string } | null;
+              if (res?.link) {
+                setLastInvite({ name: invite.name.trim(), link: res.link });
+                copy(inviteText(invite.name.trim(), res.link, dash.teacherPlan));
+                setInvite({ name: "", seats: dash.teacherPlan?.seats ?? 10, days: dash.teacherPlan?.trialDays ?? 14 });
+              }
+            }}
+          >
+            <h3>Пригласить учителя</h3>
+            <p className="muted">
+              Учитель получает свой кабинет: свои ученики, задания и записи. Твои ученики, деньги и Telegram остаются только у тебя. Пробный период, потом{" "}
+              {dash.teacherPlan?.price ?? "1490 ₽"} в месяц. Когда учитель заплатит, жми «+30 дней».
+            </p>
+            <label>
+              Имя учителя
+              <input value={invite.name} onChange={(e) => setInvite({ ...invite, name: e.target.value })} placeholder="Ольга" />
+            </label>
+            <label>
+              Мест для учеников
+              <input type="number" min={1} max={200} value={invite.seats} onChange={(e) => setInvite({ ...invite, seats: Number(e.target.value) })} />
+            </label>
+            <label>
+              Бесплатных дней
+              <input type="number" min={1} max={400} value={invite.days} onChange={(e) => setInvite({ ...invite, days: Number(e.target.value) })} />
+            </label>
+            <button type="submit" className="go small" disabled={!invite.name.trim()}>
+              ✉️ Пригласить
+            </button>
+          </form>
+
+          {lastInvite && (
+            <div className="pack">
+              <h3>Приглашение для {lastInvite.name}</h3>
+              <p className="muted">Сообщение уже скопировано. Отправь его учителю в Telegram или WhatsApp:</p>
+              <div className="slink" style={{ whiteSpace: "pre-wrap" }}>
+                {inviteText(lastInvite.name, lastInvite.link, dash.teacherPlan)}
+              </div>
+              <button type="button" className="act" onClick={async () => say((await copy(inviteText(lastInvite.name, lastInvite.link, dash.teacherPlan))) ? "Скопировано" : "Выдели текст и скопируй")}>
+                📋 Скопировать ещё раз
+              </button>
+            </div>
+          )}
+
+          <h3>Учителя</h3>
+          {(dash.teachers ?? []).length === 0 && (
+            <div className="empty">
+              <p>Пока никого. Пригласи первого учителя формой выше: ему придёт ссылка, по которой он входит без пароля.</p>
+            </div>
+          )}
+          {(dash.teachers ?? []).map((t) => (
+            <div key={t.id} className="srow">
+              <div className="srow-top">
+                <div>
+                  <b className="sname">{t.name}</b>
+                  <span className="muted">
+                    {" "}
+                    · учеников {t.students} из {t.seats}
+                  </span>
+                </div>
+                <div className="sstats">
+                  <span>{t.active ? `✅ до ${fmtD(t.until)}` : `⛔ закончился ${fmtD(t.until)}`}</span>
+                </div>
+              </div>
+              <div className="actions">
+                <button type="button" className="act" onClick={async () => say((await copy(inviteText(t.name, t.link, dash.teacherPlan))) ? "Приглашение скопировано" : t.link)}>
+                  🔗 Ссылка для входа
+                </button>
+                <button type="button" className="act" onClick={() => act({ action: "teacherExtend", id: t.id, days: 30 }, "+30 дней")}>
+                  ➕ 30 дней (оплатил)
+                </button>
+                <button type="button" className="act" onClick={() => act({ action: "teacherSeats", id: t.id, seats: t.seats + 5 }, "+5 мест")}>
+                  ➕ 5 мест
+                </button>
+                {confirmDel === `t-${t.id}` ? (
+                  <button type="button" className="act running" onClick={() => (act({ action: "teacherDelete", id: t.id }, "Учитель удалён"), setConfirmDel(null))}>
+                    Удалить кабинет? Его ученики потеряют доступ
+                  </button>
+                ) : (
+                  <button type="button" className="act" onClick={() => setConfirmDel(`t-${t.id}`)}>
+                    🗑
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {dash && me && !me.owner && tab === "plan" && (
+        <section className="results">
+          <div className="pack">
+            <h3>{me.active ? `✅ Кабинет оплачен до ${fmtD(me.until ?? null)}` : `⛔ Оплаченный период закончился ${fmtD(me.until ?? null)}`}</h3>
+            <p>
+              Учеников: <b>
+                {me.used} из {me.seats}
+              </b>
+              <br />
+              Стоимость: <b>{me.price} в месяц</b> за {me.seats} учеников. Пока кабинет оплачен, твои ученики занимаются без оплаты, с лимитами на каждый день.
+            </p>
+            <p>
+              Чтобы продлить или добавить мест, напиши Артёму: <a href={me.contact}>{me.contact}</a>
+            </p>
+            {!me.active && <p className="muted">Пока кабинет не продлён, твои ученики заходят как обычные гости, а новых добавить нельзя. Всё сохранено и вернётся после оплаты.</p>}
+          </div>
+        </section>
+      )}
+
+      {dash && owner && tab === "telegram" && (
         <section className="results">
           <div className="pack">
             {!dash.telegram.configured ? (

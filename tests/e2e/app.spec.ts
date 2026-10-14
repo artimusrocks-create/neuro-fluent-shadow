@@ -306,6 +306,33 @@ test("teacher sees Pro customers and payments", async ({ page, request }) => {
   await expect(page.getByText(/9 USD/).first()).toBeVisible();
 });
 
+test("the owner invites a teacher; the link opens the teacher's own cabinet", async ({ page }) => {
+  const errors = await prepare(page);
+  // The owner invites from the «Учителя» tab.
+  await page.goto("/teacher");
+  await page.getByLabel("Пароль препода").fill("teach-pass");
+  await page.getByRole("button", { name: "Войти" }).click();
+  await page.getByRole("button", { name: /Учителя/ }).click();
+  await page.getByLabel("Имя учителя").fill("Ольга");
+  await page.getByRole("button", { name: /Пригласить/ }).click();
+  await expect(page.getByRole("heading", { name: "Приглашение для Ольга" })).toBeVisible();
+  const link = (await page.locator(".slink").first().innerText()).match(/https?:\/\/\S+/)![0];
+
+  // The teacher opens the link: no password, their own cabinet, no money or Telegram.
+  await page.evaluate(() => localStorage.removeItem("nf-passcode"));
+  await page.goto(new URL(link).pathname + new URL(link).search);
+  await expect(page.getByText(/Кабинет · Ольга/)).toBeVisible();
+  await expect(page.getByText(/Кабинет оплачен до/)).toBeVisible();
+  await expect(page.getByRole("button", { name: /Деньги/ })).toHaveCount(0);
+  await page.getByLabel("Имя ученика").fill("Вика");
+  await page.getByRole("button", { name: "+ Добавить" }).click();
+  await expect(page.getByText("Вика", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /Подписка/ }).click();
+  await expect(page.getByText(/1490 ₽ в месяц/)).toBeVisible();
+  expect(new URL(page.url()).search).not.toContain("code="); // the login code left the address bar
+  expect(errors).toEqual([]);
+});
+
 for (const path of ["/start", "/phrases", "/phrase/can-i-get-a-coffee-to-go", "/phrase/not-bad-cant-complain-how-about-you", "/download", "/privacy", "/terms", "/delete-data", "/nope-404"]) {
   test(`public page ${path} renders cleanly on a phone`, async ({ page }) => {
     const errors = await prepare(page);

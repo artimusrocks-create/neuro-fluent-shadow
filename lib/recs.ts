@@ -11,6 +11,7 @@ export type Rec = {
   feedback?: string;
   feedbackAt?: string;
   seen?: boolean;
+  teacher?: string; // a recording from an invited teacher's student goes to that teacher's inbox
 };
 
 export async function getRecs(ids: string[]): Promise<Rec[]> {
