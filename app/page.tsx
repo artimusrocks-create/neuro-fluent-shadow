@@ -393,6 +393,8 @@ export default function Page() {
   const filteredPacks = PACKS.filter((p) => !search.trim() || (p.title + " " + p.blurb + " " + p.phrases.join(" ")).toLowerCase().includes(search.toLowerCase()));
   const sortedLib = [...progress.library].sort((a, b) => (isDue(a) === isDue(b) ? a.due.localeCompare(b.due) : isDue(a) ? -1 : 1));
   const current = queue?.items[queue.index];
+  // A topic is playing (a pack): the top bar can switch topics like a playlist.
+  const topicAt = queue && !queue.fromLibrary && !queue.own ? PACKS.findIndex((p) => p.title === queue.label) : -1;
 
   return (
     <div className="app">
@@ -439,13 +441,13 @@ export default function Page() {
                 <h1>Повторяй за носителем 5 минут в день</h1>
                 <ol className="how" aria-label="Как это работает">
                   <li>
-                    <span aria-hidden>🎧</span>Слушаешь фразу
+                    <span aria-hidden>🎧</span>Слушаешь носителя
                   </li>
                   <li>
                     <span aria-hidden>🗣</span>Повторяешь вслух
                   </li>
                   <li>
-                    <span aria-hidden>💯</span>Получаешь оценку
+                    <span aria-hidden>🚀</span>Ставишь американский акцент
                   </li>
                 </ol>
                 <button type="button" className="start-big" onClick={startToday}>
@@ -865,6 +867,8 @@ export default function Page() {
               onNext={() => setQueue((q) => (q ? { ...q, index: Math.min(q.items.length - 1, q.index + 1) } : q))}
               onClose={() => setQueue(null)}
               onFinish={finish}
+              onPrevTopic={topicAt >= 0 ? () => startPack(PACKS[(topicAt - 1 + PACKS.length) % PACKS.length]) : undefined}
+              onNextTopic={topicAt >= 0 ? () => startPack(PACKS[(topicAt + 1) % PACKS.length]) : undefined}
               onRetry={() => setQueue((q) => (q ? { ...q, items: q.items.map((x, i) => (i === q.index ? { text: x.text } : x)) } : q))}
               onPasscodeNeeded={() => {}}
             />

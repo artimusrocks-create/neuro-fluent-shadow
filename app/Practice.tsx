@@ -10,13 +10,15 @@ import {
   Blocks,
   ChevronLeft,
   ChevronRight,
-  ChevronUp,
+  Check,
   Ellipsis,
   Mic,
   Play,
   Repeat,
   Search,
   Send,
+  SkipBack,
+  SkipForward,
   Square,
   Video,
   X,
@@ -92,12 +94,14 @@ type Props = {
   onNext: () => void;
   onClose: () => void;
   onFinish?: () => void; // the last phrase is done: show the finish screen
+  onPrevTopic?: () => void; // pack topics: switch topic from the top bar (like a playlist)
+  onNextTopic?: () => void;
   onRetry: () => void;
   onPasscodeNeeded: () => void;
 };
 
 export default function Practice(props: Props) {
-  const { text, item: s, loading, loadError, label, index, total, fromLibrary, canSend, onPrev, onNext, onClose, onFinish, onRetry, onPasscodeNeeded } = props;
+  const { text, item: s, loading, loadError, label, index, total, fromLibrary, canSend, onPrev, onNext, onClose, onFinish, onPrevTopic, onNextTopic, onRetry, onPasscodeNeeded } = props;
   const progress = useProgress();
   const { gap, hide, cyrillic, tips, autoplay } = progress.settings;
   const voice = pickVoice(progress.settings.voice);
@@ -419,12 +423,10 @@ export default function Practice(props: Props) {
 
   const nextSpeed = () => setSpeed(SPEEDS[(SPEEDS.findIndex((x) => x.id === speed.id) + 1) % SPEEDS.length]);
 
-  const fastParts = useMemo(() => {
-    if (!s) return [];
-    const list = (s.blobs ?? []).map((b) => b.blob).filter(Boolean).sort((a, b) => b.length - a.length);
-    if (!list.length) return [{ text: s.fast, blob: null as string | null }];
-    const re = new RegExp("(" + list.map((b) => b.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")", "g");
-    return s.fast.split(re).map((p, i) => ({ text: p, blob: i % 2 ? p : null }));
+  // «dya WAN-na GRAB-ba DRINK»: each syllable, loud (CAPS) or quiet, as in the teacher's own transcription.
+  const rhythmParts = useMemo(() => {
+    if (!s?.rhythm) return [];
+    return s.rhythm.split(/(\s+|-)/).map((t) => ({ t, loud: isLoud(t) }));
   }, [s]);
 
   const ringColor = !score ? "var(--lav-ink)" : score.total >= 75 ? "var(--mint-ink)" : score.total >= 55 ? "var(--lav-ink)" : "var(--peach-ink)";
@@ -437,32 +439,24 @@ export default function Practice(props: Props) {
           <X size={20} />
         </button>
         <div className="counter">
-          <button type="button" aria-label="Предыдущая фраза" onClick={onPrev} disabled={index <= 0}>
-            <ChevronLeft size={18} />
-          </button>
-          <span>
-            {label} · {index + 1} из {total}
-          </span>
-          <button type="button" aria-label="Следующая фраза" onClick={onNext} disabled={isLast}>
-            <ChevronRight size={18} />
-          </button>
+          {onPrevTopic && (
+            <button type="button" aria-label="Предыдущая тема" onClick={onPrevTopic}>
+              <ChevronLeft size={18} />
+            </button>
+          )}
+          <span>{label}</span>
+          {onNextTopic && (
+            <button type="button" aria-label="Следующая тема" onClick={onNextTopic}>
+              <ChevronRight size={18} />
+            </button>
+          )}
         </div>
         <button type="button" className="icon-btn" aria-label="Ещё" onClick={() => setSheet("actions")} disabled={!s}>
           <Ellipsis size={20} />
         </button>
       </div>
 
-      <motion.div
-        className="stage"
-        drag="y"
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={0.35}
-        onDragEnd={(_, info) => {
-          if (info.offset.y < -90 && !isLast) onNext();
-          else if (info.offset.y < -90 && isLast) onFinish?.();
-          else if (info.offset.y > 90 && index > 0) onPrev();
-        }}
-      >
+      <motion.div className="stage">
         {loading || !s ? (
           <>
             {phrase ? (
@@ -528,18 +522,28 @@ export default function Practice(props: Props) {
             ) : (
               <>
                 {meaning && <p className="ru-line">{meaning}</p>}
-                <span className="fast-label">Как это звучит в жизни (нажми на выделенное, чтобы послушать):</span>
-                <p className="fast-big">
-                  {fastParts.map((p, i) => {
-                    if (!p.blob) return <span key={i}>{p.text}</span>;
-                    const b = s.blobs.find((x) => x.blob === p.blob);
-                    return (
-                      <button key={i} type="button" title={`Послушать «${b?.written}»`} onClick={() => b && playPiece(b.written, `blob${i}`)}>
-                        {p.text}
-                      </button>
-                    );
-                  })}
-                </p>
+                {rhythmParts.length > 0 && (
+                  <>
+                    <span className="fast-label">Как это звучит в жизни · ЗАГЛАВНЫЕ = ударение</span>
+                    <p className="rhythm-big">
+                      {rhythmParts.map((p, i) => (p.loud ? <b key={i}>{p.t}</b> : <span key={i}>{p.t}</span>))}
+                    </p>
+                  </>
+                )}
+                {s.blobs?.length > 0 && (
+                  <>
+                    <span className="fast-label">Что склеивается · нажми, чтобы послушать</span>
+                    <div className="blob-pairs">
+                      {s.blobs.map((b, i) => (
+                        <button key={i} type="button" className="blob-pair" onClick={() => playPiece(b.written, `pair${i}`)}>
+                          <span>{b.written}</span>
+                          <span aria-hidden>→</span>
+                          <b>{b.blob}</b>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
                 {tips && s.shadow_tip && <p className="tip-bubble">{s.shadow_tip}</p>}
               </>
             )}
@@ -593,16 +597,24 @@ export default function Practice(props: Props) {
             </button>
           )}
         </div>
-        {progress.counts.echoes === 0 && !busy && phrase && <p className="dock-hint">Голос скажет фразу, а ты повтори в паузе. Три раза подряд.</p>}
-        {!isLast ? (
-          <button type="button" className="swipe-hint" onClick={onNext}>
-            <ChevronUp size={14} /> Свайп вверх — следующая фраза
+        {progress.counts.echoes === 0 && !busy && phrase && <p className="dock-hint">Голос скажет фразу, а ты повтори её в паузе</p>}
+        <div className="track-row">
+          <button type="button" className="track-btn" aria-label="Предыдущая фраза" onClick={onPrev} disabled={index <= 0}>
+            <SkipBack size={20} fill="currentColor" />
           </button>
-        ) : onFinish ? (
-          <button type="button" className="finish-btn" onClick={onFinish}>
-            Готово, это последняя фраза ✓
-          </button>
-        ) : null}
+          <span className="track-count">
+            {index + 1} из {total}
+          </span>
+          {isLast && onFinish ? (
+            <button type="button" className="track-btn finish" aria-label="Готово, это последняя фраза" onClick={onFinish}>
+              <Check size={18} /> Готово
+            </button>
+          ) : (
+            <button type="button" className="track-btn" aria-label="Следующая фраза" onClick={onNext} disabled={isLast}>
+              <SkipForward size={20} fill="currentColor" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Recording */}

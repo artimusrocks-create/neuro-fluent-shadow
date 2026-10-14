@@ -808,3 +808,24 @@ a.pill-link, a.logo, a.wide-btn { text-decoration: none; }
 .done-stats { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
 .done-box .start-ic { font-size: 26px; }
 .done-box .hero-links { justify-content: flex-start; }
+
+/* How it sounds: the rhythm line (CAPS = loud) and written → sound pairs */
+.rhythm-big { margin: 0; font-size: 21px; line-height: 1.5; color: var(--muted); word-break: break-word; }
+.rhythm-big b { color: var(--ink); font-weight: 700; }
+.blob-pairs { display: flex; flex-wrap: wrap; gap: 8px; }
+.blob-pair { display: inline-flex; align-items: baseline; gap: 6px; border: 0; border-radius: 10px; background: var(--hl); color: var(--hl-ink); padding: 6px 10px; font-size: 15px; }
+.blob-pair span:first-child { opacity: .7; }
+.blob-pair b { font-family: var(--font-mono); font-weight: 600; }
+/* Player-style track controls */
+.track-row { display: flex; align-items: center; justify-content: center; gap: 16px; width: 100%; }
+.track-btn { height: 44px; min-width: 60px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 600; font-size: 15px; }
+.track-btn:disabled { opacity: .35; }
+.track-btn.finish { background: var(--ink); color: var(--on-ink); border-color: transparent; }
+.track-count { min-width: 64px; text-align: center; color: var(--muted); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* The phrase area centers when it fits and scrolls from the top when it doesn't (small phones, long breakdowns) */
+.stage { justify-content: flex-start; touch-action: auto; }
+.stage > :first-child { margin-top: auto; }
+.stage > :last-child { margin-bottom: auto; }
+/* Short phones: a more compact dock leaves room for the phrase */
+@media (max-height: 700px) { .mic-big { width: 76px; height: 76px; } .play-btn { width: 56px; height: 56px; } .dock { gap: 10px; padding-bottom: 12px; } .dock-hint { display: none; } }

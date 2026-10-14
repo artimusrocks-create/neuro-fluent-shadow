@@ -17,6 +17,13 @@ async function prepare(page: Page) {
   return errors;
 }
 
+/** Practice shows the topic on top and the position (e.g. «2 из 8») in the player controls below. */
+async function at(page: Page, topic: string, pos: string) {
+  const practice = page.getByRole("dialog", { name: "Тренировка" });
+  await expect(practice.locator(".counter").getByText(topic, { exact: true })).toBeVisible();
+  await expect(practice.locator(".track-count")).toHaveText(pos);
+}
+
 async function noSideScroll(page: Page) {
   const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(over, "page scrolls sideways on a phone").toBeLessThanOrEqual(1);
@@ -51,7 +58,7 @@ test("first screen: one big button starts ready phrases, nothing to type", async
   await page.goto("/");
   await page.getByRole("button", { name: /Начать тренировку/ }).click();
   const practice = page.getByRole("dialog", { name: "Тренировка" });
-  await expect(practice.getByText(/ · 1 из 8$/)).toBeVisible();
+  await expect(practice.locator(".track-count")).toHaveText("1 из 8");
   await expect(practice.getByRole("button", { name: "Слушать" })).toBeEnabled();
   expect(errors).toEqual([]);
 });
@@ -62,7 +69,7 @@ test("first screen: topics are right there, and an example opens with one tap", 
   await expect(page.getByRole("button", { name: /Small talk/ })).toBeVisible();
   await page.getByRole("button", { name: "Sorry, you're on mute." }).click();
   const practice = page.getByRole("dialog", { name: "Тренировка" });
-  await expect(practice.getByText("Пример · 1 из 1")).toBeVisible();
+  await at(page, "Пример", "1 из 1");
   await expect(practice.getByRole("button", { name: "Слушать" })).toBeEnabled();
   await noSideScroll(page);
   expect(errors).toEqual([]);
@@ -74,7 +81,7 @@ test("a pasted text opens at once, one sentence per step, and the voice is ready
   await page.getByLabel("Фраза на английском").fill("Hey team, quick update.\nThe release is moving to Friday. I'll send the details by email.");
   await page.getByRole("button", { name: "Разобрать" }).click();
   const practice = page.getByRole("dialog", { name: "Тренировка" });
-  await expect(practice.getByText("Твой текст · 1 из 3")).toBeVisible();
+  await at(page, "Твой текст", "1 из 3");
   await expect(practice.getByText("Hey", { exact: true })).toBeVisible();
   await expect(practice.getByRole("button", { name: "Слушать" })).toBeEnabled();
   // The first sentence is voiced on its own (no tap): a free visitor may hear it before its breakdown.
@@ -82,7 +89,7 @@ test("a pasted text opens at once, one sentence per step, and the voice is ready
     ((await (await request.get(`${MOCK}/__calls?service=elevenlabs`)).json()) as { kind: string; text?: string }[]).filter((c) => c.kind === "tts").length;
   await expect.poll(tts).toBeGreaterThan(0);
   await practice.getByRole("button", { name: "Следующая фраза", exact: true }).click();
-  await expect(practice.getByText("Твой текст · 2 из 3")).toBeVisible();
+  await at(page, "Твой текст", "2 из 3");
   expect(errors).toEqual([]);
 });
 
@@ -91,16 +98,16 @@ test("the end of a topic: a finish screen with the next topic, not a dead end", 
   await page.goto("/");
   await page.getByRole("button", { name: /В кафе и ресторане/ }).click();
   const practice = page.getByRole("dialog", { name: "Тренировка" });
-  await expect(practice.getByText("В кафе и ресторане · 1 из 8")).toBeVisible();
+  await at(page, "В кафе и ресторане", "1 из 8");
   for (let i = 2; i <= 8; i++) {
     await practice.getByRole("button", { name: "Следующая фраза", exact: true }).click();
-    await expect(practice.getByText(`В кафе и ресторане · ${i} из 8`)).toBeVisible();
+    await at(page, "В кафе и ресторане", `${i} из 8`);
   }
   await practice.getByRole("button", { name: /Готово, это последняя фраза/ }).click();
   const finish = page.getByRole("dialog", { name: "Готово 🎉" });
   await expect(finish.getByText(/8 фраз пройдено/)).toBeVisible();
   await finish.getByRole("button", { name: /Следующая тема/ }).click();
-  await expect(page.getByRole("dialog", { name: "Тренировка" }).getByText("Аэропорт и путешествия · 1 из 8")).toBeVisible();
+  await at(page, "Аэропорт и путешествия", "1 из 8");
   expect(errors).toEqual([]);
 });
 
@@ -109,7 +116,7 @@ test("your own text: the next sentence is prepared while you practice the curren
   await page.goto("/");
   await page.getByLabel("Фраза на английском").fill("I'll walk you through the plan. Then we can take questions. Thanks for joining today.");
   await page.getByRole("button", { name: "Разобрать" }).click();
-  await expect(page.getByRole("dialog", { name: "Тренировка" }).getByText("Твой текст · 1 из 3")).toBeVisible();
+  await at(page, "Твой текст", "1 из 3");
   const breakdowns = async () => ((await (await request.get(`${MOCK}/__calls?service=anthropic`)).json()) as unknown[]).length;
   await expect.poll(breakdowns).toBeGreaterThanOrEqual(2); // the first sentence and, ahead of time, the second
 });
@@ -121,8 +128,13 @@ test("a phrase pack opens full-screen practice", async ({ page }) => {
   await page.getByRole("button", { name: /В кафе и ресторане/ }).click();
   const practice = page.getByRole("dialog", { name: "Тренировка" });
   await expect(practice).toBeVisible();
-  await expect(practice.getByText("В кафе и ресторане · 1 из 8")).toBeVisible();
+  await at(page, "В кафе и ресторане", "1 из 8");
   await expect(practice.getByRole("button", { name: "Слушать" })).toBeEnabled();
+  // Like a playlist: ⏭ moves to the next phrase, the top arrows switch topics.
+  await practice.getByRole("button", { name: "Следующая фраза", exact: true }).click();
+  await at(page, "В кафе и ресторане", "2 из 8");
+  await practice.getByRole("button", { name: "Следующая тема" }).click();
+  await at(page, "Аэропорт и путешествия", "1 из 8");
   expect(errors).toEqual([]);
 });
 
@@ -158,11 +170,11 @@ test("a link to one phrase opens it straight away", async ({ page }) => {
   await prepare(page);
   // A pack phrase (Telegram channel post, phrase page) continues with the rest of its topic.
   await page.goto(`/?p=${encodeURIComponent("Can I get a coffee to go?")}`);
-  await expect(page.getByRole("dialog", { name: "Тренировка" }).getByText("В кафе и ресторане · 1 из 8")).toBeVisible();
+  await at(page, "В кафе и ресторане", "1 из 8");
   await expect(page.getByText("Можно кофе с собой?")).toBeVisible(); // what it means, right under the phrase
   // Any other phrase opens on its own.
   await page.goto(`/?p=${encodeURIComponent("Let's circle back on this tomorrow.")}`);
-  await expect(page.getByRole("dialog", { name: "Тренировка" }).getByText("Фраза · 1 из 1")).toBeVisible();
+  await at(page, "Фраза", "1 из 1");
 });
 
 test("voice: the old teacher voice saved in a browser becomes the new default, and audio loads before «Слушать»", async ({ page, request }) => {
