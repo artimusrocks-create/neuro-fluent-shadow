@@ -49,7 +49,7 @@ async function retry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
     try {
       return await fn();
     } catch (e) {
-      if (i >= tries) throw e;
+      if (i >= tries || (e as { fatal?: boolean }).fatal) throw e;
       await new Promise((r) => setTimeout(r, 2000 * i));
     }
   }
@@ -137,19 +137,22 @@ async function main() {
   if (!DRY && !NO_AUDIO && todo.length) {
     const key = process.env.ELEVENLABS_API_KEY;
     if (!key) throw new Error("ELEVENLABS_API_KEY is missing (environment or .env.local)");
+    const base = process.env.ELEVENLABS_BASE_URL || "https://api.elevenlabs.io";
     let done = 0;
     // 3 at a time: the smaller ElevenLabs plans allow only a few requests at once.
     await pool(todo, 3, async ([k, j]) => {
       const data = await retry(async () => {
-        const res = await fetch(
-          `https://api.elevenlabs.io/v1/text-to-speech/${j.voice}/with-timestamps?output_format=mp3_44100_128`,
-          {
-            method: "POST",
-            headers: { "xi-api-key": key, "Content-Type": "application/json" },
-            body: JSON.stringify(ttsBody(j.text, j.speed)),
-          }
-        );
-        if (!res.ok) throw new Error(`TTS ${res.status} ${(await res.text()).slice(0, 200)}`);
+        const res = await fetch(`${base}/v1/text-to-speech/${j.voice}/with-timestamps?output_format=mp3_44100_128`, {
+          method: "POST",
+          headers: { "xi-api-key": key, "Content-Type": "application/json" },
+          body: JSON.stringify(ttsBody(j.text, j.speed)),
+        });
+        if (!res.ok) {
+          const err = new Error(`TTS ${res.status} for "${j.text}" ${(await res.text()).slice(0, 200)}`);
+          // Busy (429) or a server hiccup (5xx) is worth another try; anything else won't change.
+          if (res.status !== 429 && res.status < 500) Object.assign(err, { fatal: true });
+          throw err;
+        }
         return (await res.json()) as { audio_base64: string; alignment?: Alignment; normalized_alignment?: Alignment };
       }, 5);
       fs.writeFileSync(path.join(OUT, "a", `${k}.mp3`), Buffer.from(data.audio_base64, "base64"));
