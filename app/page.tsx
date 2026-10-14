@@ -111,17 +111,23 @@ const plural = (n: number, one: string, few: string, many: string) => {
 /** Compact topic tile for the first screen: all eight topics fit on a phone without scrolling forever. */
 function PackTile({ p, onClick }: { p: Pack; onClick: () => void }) {
   return (
-    <button type="button" className="ptile" onClick={onClick}>
+    <button type="button" className={`ptile ${p.featured ? "wide" : ""}`} onClick={onClick}>
       <span className="pcard-ic sm" style={{ background: p.colors[0] }} aria-hidden>
         {p.emoji}
       </span>
       <span className="ptile-t">
         <b>{p.title}</b>
-        <small>{p.phrases.length} фраз</small>
+        <small>
+          {p.phrases.length} фраз{p.featured ? ` · ${p.blurb}` : ""}
+        </small>
       </span>
+      {p.featured && <span className="ptile-new">Новое</span>}
     </button>
   );
 }
+
+// A new topic goes first (and wide) so people notice it.
+const HOME_PACKS = [...PACKS].sort((a, b) => Number(!!b.featured) - Number(!!a.featured));
 
 type View = "home" | "packs" | "library" | "progress" | "assigned";
 type Item = { text: string; s?: Sentence; err?: string; pf?: boolean }; // pf: a quiet load-ahead failed, load normally on arrival
@@ -409,7 +415,7 @@ export default function Page() {
   const plan = planState(progress);
   const feedback = me?.recs.filter((r) => r.feedback).length ?? 0;
   const voice = pickVoice(settings.voice);
-  const filteredPacks = PACKS.filter((p) => !search.trim() || (p.title + " " + p.blurb + " " + p.phrases.join(" ")).toLowerCase().includes(search.toLowerCase()));
+  const filteredPacks = HOME_PACKS.filter((p) => !search.trim() || (p.title + " " + p.blurb + " " + p.phrases.join(" ")).toLowerCase().includes(search.toLowerCase()));
   const sortedLib = [...progress.library].sort((a, b) => (isDue(a) === isDue(b) ? a.due.localeCompare(b.due) : isDue(a) ? -1 : 1));
   const current = queue?.items[queue.index];
   // A topic is playing (a pack): the top bar can switch topics like a playlist.
@@ -541,7 +547,7 @@ export default function Page() {
               <section className="home-sec">
                 <h2>Или выбери тему</h2>
                 <div className="ptiles">
-                  {PACKS.map((p) => (
+                  {HOME_PACKS.map((p) => (
                     <PackTile key={p.id} p={p} onClick={() => startPack(p)} />
                   ))}
                 </div>

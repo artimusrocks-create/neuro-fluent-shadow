@@ -46,6 +46,7 @@ import { libId, review, setSettings, toggleSave, track, useProgress } from "@/li
 import { renderReel } from "@/lib/reels";
 import { VOICES, pickVoice } from "@/lib/voices";
 import { RU } from "@/lib/ru";
+import { PACKS } from "@/lib/packs";
 import Sheet from "./ui/Sheet";
 import ReportButton from "./ui/ReportButton";
 import Waveform from "./Waveform";
@@ -110,6 +111,8 @@ export default function Practice(props: Props) {
   const phrase = s?.text ?? text.trim();
   // What it means: from the breakdown, or the pack's own translation (shown right away for pack phrases).
   const meaning = s?.ru || RU[phrase] || RU[text.trim()] || "";
+  // A pack's own line under the phrase, e.g. which film it's from.
+  const note = useMemo(() => PACKS.find((p) => p.notes?.[phrase])?.notes?.[phrase] ?? "", [phrase]);
   // The rulebook's letter codes, «Флэп (E)», mean nothing to a learner: show just the name.
   const ruleName = (r: string) => r.replace(/\s*\([A-ZА-Я]\)/g, "").trim();
 
@@ -472,6 +475,7 @@ export default function Practice(props: Props) {
               </p>
             ) : null}
             {phrase && meaning && !veiled ? <p className="ru-line">{meaning}</p> : null}
+            {phrase && note && !veiled ? <p className="film-line">{note}</p> : null}
             {loadError ? (
               <div style={{ display: "grid", gap: 12, justifyItems: "start" }}>
                 <p className="error-line" style={{ textAlign: "left" }}>
@@ -522,6 +526,7 @@ export default function Practice(props: Props) {
             ) : (
               <>
                 {meaning && <p className="ru-line">{meaning}</p>}
+                {note && <p className="film-line">{note}</p>}
                 {rhythmParts.length > 0 && (
                   <>
                     <span className="fast-label">Как это звучит в жизни · ЗАГЛАВНЫЕ = ударение</span>

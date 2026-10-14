@@ -9,6 +9,8 @@ export type Pack = {
   fast: string; // its fast version, shown under the bubble
   colors: [string, string, string]; // card gradient: glow 1, glow 2, base
   phrases: string[];
+  notes?: Record<string, string>; // a line under a phrase in practice, e.g. which film it's from
+  featured?: boolean; // shown first and wide on the first screen (a new topic)
 };
 
 export const PACKS: Pack[] = [
@@ -163,6 +165,36 @@ export const PACKS: Pack[] = [
       "Dude, you gotta see this.",
       "Whatever works for you.",
     ],
+  },
+  {
+    id: "movies",
+    emoji: "🍿",
+    title: "Фразы из фильмов",
+    blurb: "Культовые реплики, как их говорят актёры",
+    sample: "You're gonna need a bigger boat.",
+    fast: "yergonna needa bigger boat",
+    colors: ["#ffd9c2", "#e2d4ff", "#fbe3d6"],
+    featured: true,
+    phrases: [
+      "I'll be back.",
+      "Houston, we have a problem.",
+      "You're gonna need a bigger boat.",
+      "Say hello to my little friend!",
+      "I'm gonna make him an offer he can't refuse.",
+      "You can't handle the truth!",
+      "You're goddamn right.",
+      "You know what they call a Quarter Pounder with Cheese in Paris?",
+    ],
+    notes: {
+      "I'll be back.": "🎬 «Терминатор», 1984",
+      "Houston, we have a problem.": "🎬 «Аполлон-13», 1995",
+      "You're gonna need a bigger boat.": "🎬 «Челюсти», 1975",
+      "Say hello to my little friend!": "🎬 «Лицо со шрамом», 1983",
+      "I'm gonna make him an offer he can't refuse.": "🎬 «Крёстный отец», 1972",
+      "You can't handle the truth!": "🎬 «Несколько хороших парней», 1992",
+      "You're goddamn right.": "🎬 «Во все тяжкие», сериал",
+      "You know what they call a Quarter Pounder with Cheese in Paris?": "🎬 «Криминальное чтиво», 1994",
+    },
   },
 ];
 

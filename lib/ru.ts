@@ -65,4 +65,12 @@ export const RU: Record<string, string> = {
   "I'm kinda tired, to be honest.": "Честно говоря, я что-то устал.",
   "Dude, you gotta see this.": "Чувак, ты должен это увидеть.",
   "Whatever works for you.": "Как тебе удобнее.",
+  "I'll be back.": "Я вернусь.",
+  "Houston, we have a problem.": "Хьюстон, у нас проблема.",
+  "You're gonna need a bigger boat.": "Тебе понадобится лодка побольше.",
+  "Say hello to my little friend!": "Поздоровайся с моим маленьким другом!",
+  "I'm gonna make him an offer he can't refuse.": "Я сделаю ему предложение, от которого он не сможет отказаться.",
+  "You can't handle the truth!": "Тебе не вынести правды!",
+  "You're goddamn right.": "Чертовски верно.",
+  "You know what they call a Quarter Pounder with Cheese in Paris?": "А знаешь, как в Париже называют четвертьфунтовый с сыром?",
 };

@@ -77,6 +77,21 @@ test("first screen: topics are right there, and an example opens with one tap", 
   expect(errors).toEqual([]);
 });
 
+test("film quotes: the new topic comes first on the home screen, and each line says which film it's from", async ({ page }) => {
+  const errors = await prepare(page);
+  await page.goto("/");
+  const first = page.locator(".ptile").first();
+  await expect(first).toContainText("Фразы из фильмов");
+  await expect(first).toContainText("Новое");
+  await first.click();
+  const practice = page.getByRole("dialog", { name: "Тренировка" });
+  await at(page, "Фразы из фильмов", "1 из 8");
+  await expect(practice.getByText("🎬 «Терминатор», 1984")).toBeVisible();
+  await expect(practice.getByRole("button", { name: "Слушать" })).toBeEnabled();
+  await noSideScroll(page);
+  expect(errors).toEqual([]);
+});
+
 test("a pasted text opens at once, one sentence per step, and the voice is ready before the breakdown", async ({ page, request }) => {
   const errors = await prepare(page);
   await page.goto("/");

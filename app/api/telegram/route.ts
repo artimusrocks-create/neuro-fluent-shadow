@@ -6,6 +6,17 @@ import { appBase, appUrlFor, botUsername, dailyText, healWebhook, sendWithApp, t
 import { InProgress, fmtDate, grantPro, logPay, notifyTeacher, once, patchStudent, personalLink, setClaim, starsInvoiceLink, starsPrice } from "@/lib/pro";
 import { connectPendingChannel, onChannelMembership, postPhraseToChannel } from "@/lib/channel";
 import { askEnglishHelper, groupQuestion, takeQuestion } from "@/lib/qa";
+import { claimPromo, isPromoWord, promoText } from "@/lib/promo";
+
+/** The «ТЕСТ» giveaway: Pro for a week to the first ten (lib/promo.ts). The app button opens their Pro. */
+async function sendPromo(chatId: number, from: { id: number; first_name?: string; username?: string } | undefined) {
+  const r = redis();
+  if (!from || !r) return;
+  const res = await claimPromo(from);
+  if (res.kind !== "gone") await r.set(`tg:code:${chatId}`, res.student.code);
+  await count(`tg_promo_${res.kind}`);
+  await sendWithApp(chatId, promoText(res), res.kind === "gone" ? undefined : "🎧 Открыть Pro");
+}
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -247,6 +258,11 @@ export async function POST(req: Request) {
         await sendPitch(chatId, arg.startsWith("pro_") ? arg.slice(4) : undefined, msg.from);
         return NextResponse.json({ ok: true });
       }
+      // t.me/<bot>?start=test: the giveaway link from Instagram.
+      if (isPromoWord(arg)) {
+        await sendPromo(chatId, msg.from);
+        return NextResponse.json({ ok: true });
+      }
       // Deep link from the teacher: t.me/<bot>?start=<student-code>
       if (arg && r) {
         const id = await r.get<string>(`code:${arg.toLowerCase()}`);
@@ -295,6 +311,8 @@ export async function POST(req: Request) {
     } else if (text.startsWith("/stop")) {
       if (r) await r.srem("tg:subs", String(chatId));
       await sendWithApp(chatId, "Готово, утренних сообщений больше не будет. Вернуть: /start");
+    } else if (isPromoWord(text)) {
+      await sendPromo(chatId, msg.from);
     } else if (text && !text.startsWith("/")) {
       // Anything else typed in the bot's chat is a question about English.
       await answer(update, msg, text, false);
