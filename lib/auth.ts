@@ -218,19 +218,26 @@ export async function freePhraseGate(who: Who, text: string): Promise<NextRespon
   const counters = [`freecnt:${who.id}:${day}`, `freecntip:${who.ip}:${day}`, `useall:${day}:breakdown`];
   const h = text.trim().toLowerCase();
   if (await r.sismember(key, h)) return null; // already opened today: free
-  if (!(await r.sadd(key, h))) return null; // opened by a request running at the same moment: free
-  await r.expire(key, 2 * 86400);
-  // Counters hand out a unique number to every request, so many requests at once can't slip past the limit.
-  const [mine, ip, all] = await Promise.all(counters.map((k) => bump(k, 2)));
-  const over =
+  const overFor = (mine: number, ip: number, all: number) =>
     all > DEMO_GLOBAL_LIMITS.breakdown * globalScale()
       ? "Бесплатные фразы на сегодня уже разобрали. Завтра будут новые, а с Pro можно прямо сейчас."
       : mine > FREE_PHRASES || ip > DEMO_IP_LIMITS.breakdown
         ? `Бесплатно — ${FREE_PHRASES} фраз в день. Завтра будет ещё ${FREE_PHRASES}.`
         : null;
+  const refuse = (message: string) => NextResponse.json({ error: "limit", message, contact: CONTACT_URL, upgrade: true }, { status: 429 });
+  // Already at the limit: say no before touching anything. The voice and the breakdown of a new phrase are
+  // asked at the same moment; both must get the same "no" (a half-finished undo must not let one through).
+  const now = (await r.mget<(number | null)[]>(...counters)).map((n) => Number(n ?? 0));
+  const atLimit = overFor(now[0] + 1, now[1] + 1, now[2] + 1);
+  if (atLimit) return refuse(atLimit);
+  if (!(await r.sadd(key, h))) return null; // opened by a request running at the same moment: free
+  await r.expire(key, 2 * 86400);
+  // Counters hand out a unique number to every request, so many requests at once can't slip past the limit.
+  const [mine, ip, all] = await Promise.all(counters.map((k) => bump(k, 2)));
+  const over = overFor(mine, ip, all);
   if (!over) return null;
   await Promise.all([r.srem(key, h), ...counters.map((k) => r.decr(k))]);
-  return NextResponse.json({ error: "limit", message: over, contact: CONTACT_URL, upgrade: true }, { status: 429 });
+  return refuse(over);
 }
 
 /** Sentences a free visitor unlocked today: only these (and their pieces) may be voiced for free. */

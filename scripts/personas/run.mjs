@@ -9,6 +9,8 @@
 //   --steps 22                                           most taps per person
 //   --parallel 3                                         people at the same time
 //   --out persona-report                                 folder for report.html and report.json
+//   --from persona-report/<run>  --note "..."            re-summarize a finished run (no new visits),
+//                                                        e.g. to tell the summary about a known test glitch
 //
 // Safe to run against the live site: each person is a fresh free visitor (normal free allowance),
 // their analytics events are dropped, they can't leave the site, and payment and microphone buttons
@@ -16,7 +18,7 @@
 
 import { chromium, devices } from "@playwright/test";
 import Anthropic from "@anthropic-ai/sdk";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PEOPLE } from "./people.mjs";
 
@@ -30,7 +32,9 @@ const MAX_STEPS = Number(opt("steps", 22));
 const PARALLEL = Number(opt("parallel", 3));
 const ONLY = opt("only", "") ? opt("only", "").split(",") : null;
 const MODEL = process.env.PERSONA_MODEL || "claude-sonnet-5-5";
-const OUT = join(opt("out", "persona-report"), new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19));
+const FROM = opt("from", "");
+const NOTE = opt("note", "");
+const OUT = FROM || join(opt("out", "persona-report"), new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19));
 
 const client = new Anthropic();
 const people = PEOPLE.filter((p) => !ONLY || ONLY.includes(p.id));
@@ -208,11 +212,22 @@ async function act(page, action, targets) {
 // ---------- one person ----------
 async function runPerson(p, browser) {
   const ctx = await browser.newContext({ ...devices["Pixel 7"], deviceScaleFactor: 1, locale: "ru-RU", timezoneId: "Asia/Tbilisi" });
-  await ctx.route("**/*", (route) => {
-    const u = new URL(route.request().url());
+  await ctx.route("**/*", async (route) => {
+    const req = route.request();
+    const u = new URL(req.url());
     if (u.origin !== origin) return route.abort(); // never leave the site (payment pages, Telegram, trackers)
     if (u.pathname === "/api/event") return route.fulfill({ status: 204, body: "" }); // keep the real funnel numbers clean
-    return route.continue();
+    if (req.method() !== "GET") return route.continue();
+    // The test machine's own network drops a request now and then: retry page files, so a hiccup here
+    // isn't reported as the site being broken.
+    for (let i = 0; i < 3; i++) {
+      try {
+        const res = await route.fetch();
+        if (![502, 503, 504].includes(res.status()) || i === 2) return route.fulfill({ response: res });
+      } catch {}
+      await new Promise((ok) => setTimeout(ok, 400 * (i + 1)));
+    }
+    return route.abort();
   });
   const page = await ctx.newPage();
   const started = Date.now();
@@ -289,7 +304,7 @@ function describe(a, name) {
 }
 
 // ---------- everyone together ----------
-async function summarize(results) {
+async function summarize(results, note = "") {
   const reports = results
     .map((r) => {
       const v = r.verdict;
@@ -304,7 +319,7 @@ async function summarize(results) {
     content: [
       {
         type: "text",
-        text: `${results.length} people tried an app for Russian speakers who want to sound like Americans (shadowing: listen to a phrase, repeat it, get a score). Their reports:\n\n${reports}\n\nGroup what got in their way into distinct issues, most important first (how many people hit it, how badly it hurt). Reply with ONLY this JSON:\n{"headline":"one sentence","issues":[{"title":"short","who":["person ids"],"severity":"high|medium|low","what_happened":"1-2 sentences","quote":"a short Russian quote from one of them","fix":"one concrete suggestion"}],"worked_well":["short"],"pay_signal":"one sentence about willingness to pay"}`,
+        text: `${note ? `Known facts about this test run (trust these over the reports): ${note}\n\n` : ""}${results.length} people tried an app for Russian speakers who want to sound like Americans (shadowing: listen to a phrase, repeat it, get a score). Their reports:\n\n${reports}\n\nGroup what got in their way into distinct issues, most important first (how many people hit it, how badly it hurt). Reply with ONLY this JSON:\n{"headline":"one sentence","issues":[{"title":"short","who":["person ids"],"severity":"high|medium|low","what_happened":"1-2 sentences","quote":"a short Russian quote from one of them","fix":"one concrete suggestion"}],"worked_well":["short"],"pay_signal":"one sentence about willingness to pay"}`,
       },
     ],
   });
@@ -447,25 +462,30 @@ blockquote { margin: 0; padding-left: 12px; border-left: 3px solid var(--line); 
 // ---------- run ----------
 mkdirSync(OUT, { recursive: true });
 const saveRaw = (results) => writeFileSync(join(OUT, "people.json"), JSON.stringify(results));
-const browser = await chromium.launch();
-console.log(`Testing ${BASE} with ${people.length} people, up to ${MAX_STEPS} steps each, ${PARALLEL} at a time…`);
-const results = [];
-const queue = [...people];
-await Promise.all(
-  Array.from({ length: Math.min(PARALLEL, people.length) }, async () => {
-    while (queue.length) {
-      const p = queue.shift();
-      console.log(`→ ${p.name} starts at ${p.start}`);
-      results.push(await runPerson(p, browser));
-      saveRaw(results); // nothing is lost if a later step fails
-    }
-  })
-);
-await browser.close();
-results.sort((a, b) => people.indexOf(a.person) - people.indexOf(b.person));
+let results = [];
+if (FROM) {
+  results = JSON.parse(readFileSync(join(FROM, "people.json"), "utf8"));
+  console.log(`Re-summarizing ${results.length} visits from ${FROM}…`);
+} else {
+  const browser = await chromium.launch();
+  console.log(`Testing ${BASE} with ${people.length} people, up to ${MAX_STEPS} steps each, ${PARALLEL} at a time…`);
+  const queue = [...people];
+  await Promise.all(
+    Array.from({ length: Math.min(PARALLEL, people.length) }, async () => {
+      while (queue.length) {
+        const p = queue.shift();
+        console.log(`→ ${p.name} starts at ${p.start}`);
+        results.push(await runPerson(p, browser));
+        saveRaw(results); // nothing is lost if a later step fails
+      }
+    })
+  );
+  await browser.close();
+  results.sort((a, b) => PEOPLE.findIndex((x) => x.id === a.person.id) - PEOPLE.findIndex((x) => x.id === b.person.id));
+}
 let summary;
 try {
-  summary = await summarize(results);
+  summary = await summarize(results, NOTE);
 } catch (e) {
   summary = { headline: "Summary failed; each person's visit is below.", issues: [], worked_well: [], pay_signal: String(e).slice(0, 200) };
 }

@@ -92,6 +92,12 @@ function PackCard({ p, onClick }: { p: Pack; onClick: () => void }) {
   );
 }
 
+/** 1 фраза, 2 фразы, 5 фраз (and the same for дни). */
+const plural = (n: number, one: string, few: string, many: string) => {
+  const t = n % 10, h = n % 100;
+  return t === 1 && h !== 11 ? one : t >= 2 && t <= 4 && (h < 12 || h > 14) ? few : many;
+};
+
 /** Compact topic tile for the first screen: all eight topics fit on a phone without scrolling forever. */
 function PackTile({ p, onClick }: { p: Pack; onClick: () => void }) {
   return (
@@ -108,8 +114,9 @@ function PackTile({ p, onClick }: { p: Pack; onClick: () => void }) {
 }
 
 type View = "home" | "packs" | "library" | "progress" | "assigned";
-type Item = { text: string; s?: Sentence; err?: string };
-type Queue = { items: Item[]; index: number; label: string; fromLibrary?: boolean } | null;
+type Item = { text: string; s?: Sentence; err?: string; pf?: boolean }; // pf: a quiet load-ahead failed, load normally on arrival
+type Queue = { items: Item[]; index: number; label: string; fromLibrary?: boolean; own?: boolean } | null;
+type Done = { label: string; count: number; texts: string[]; fromLibrary?: boolean };
 
 export default function Page() {
   const progress = useProgress();
@@ -124,6 +131,7 @@ export default function Page() {
   const [me, setMe] = useState<Me | null>(null);
   const [code, setCode] = useState("");
   const [toasts, setToasts] = useState<string[]>([]);
+  const [done, setDone] = useState<Done | null>(null);
   const [search, setSearch] = useState("");
   const [dictating, setDictating] = useState(false);
   const [pro, setPro] = useState<{ reason: ProReason; waiting?: boolean } | null>(null);
@@ -231,7 +239,7 @@ export default function Page() {
     else if (d) setQueue({ items: [{ text: d }], index: 0, label: "Фраза" });
     return onBadges((ids) => {
       setToasts((t) => [...t, ...ids]);
-      setTimeout(() => setToasts((t) => t.slice(ids.length)), 4000);
+      setTimeout(() => setToasts((t) => t.slice(ids.length)), 2500);
     });
   }, []);
 
@@ -244,9 +252,11 @@ export default function Page() {
 
   // ---------- Practice queue ----------
   const ensureLoaded = useCallback(
-    async (q: NonNullable<Queue>, i: number) => {
+    // prefetch: loading ahead quietly. If it fails (e.g. today's free phrases are used up), nothing pops up now;
+    // the normal load shows it when the person gets to that sentence.
+    async (q: NonNullable<Queue>, i: number, prefetch = false) => {
       const it = q.items[i];
-      if (!it || it.s || it.err || loadingRef.current.has(it.text)) return;
+      if (!it || it.s || it.err || (prefetch && it.pf) || loadingRef.current.has(it.text)) return;
       loadingRef.current.add(it.text);
       try {
         const d = await fetchBreakdown(it.text, settings.cyrillic);
@@ -261,6 +271,10 @@ export default function Page() {
           return { ...cur, items };
         });
       } catch (e) {
+        if (prefetch) {
+          setQueue((cur) => (cur ? { ...cur, items: cur.items.map((x) => (x.text === it.text ? { ...x, pf: true } : x)) } : cur));
+          return;
+        }
         if (e instanceof ApiError && e.kind === "limit") openPro("limit");
         const msg = e instanceof Error ? e.message : "Не получилось загрузить фразу.";
         setQueue((cur) => (cur ? { ...cur, items: cur.items.map((x) => (x.text === it.text ? { ...x, err: msg } : x)) } : cur));
@@ -276,14 +290,21 @@ export default function Page() {
     ensureLoaded(queue, queue.index);
     // Prefetch the next phrase: always for baked pack phrases, live ones only for full accounts.
     const next = queue.items[queue.index + 1];
-    if (next && (isBaked(next.text) || (me && me.role !== "demo"))) ensureLoaded(queue, queue.index + 1);
+    if (next && (isBaked(next.text) || queue.own || (me && me.role !== "demo"))) ensureLoaded(queue, queue.index + 1, true);
   }, [queue, ensureLoaded, me]);
 
-  function startQueue(items: Item[], label: string, fromLibrary = false, index = 0) {
+  function startQueue(items: Item[], label: string, fromLibrary = false, index = 0, own = false) {
     if (!items.length) return;
     unlockAudio(); // inside the tap: lets the first phrase play by itself, even on iPhone
     setMenu(false);
-    setQueue({ items, index, label, fromLibrary });
+    setDone(null);
+    setQueue({ items, index, label, fromLibrary, own });
+  }
+  // The last phrase is done: close practice and show what's next.
+  function finish() {
+    if (!queue) return;
+    setDone({ label: queue.label, count: queue.items.length, texts: queue.items.map((x) => x.text), fromLibrary: queue.fromLibrary });
+    setQueue(null);
   }
   const startTexts = (texts: string[], label: string, index = 0) => startQueue(texts.map((t) => ({ text: t })), label, false, index);
   const startPack = (p: Pack) => (trackEvent("pack"), startTexts(p.phrases, p.title));
@@ -305,7 +326,14 @@ export default function Page() {
     if (!items.length) return;
     setError("");
     trackEvent(items.length > 1 ? "text" : "phrase");
-    startTexts(items.slice(0, MAX_ITEMS), items.length > 1 ? "Твой текст" : "Твоя фраза");
+    unlockAudio();
+    startQueue(
+      items.slice(0, MAX_ITEMS).map((t) => ({ text: t })),
+      items.length > 1 ? "Твой текст" : "Твоя фраза",
+      false,
+      0,
+      true
+    );
     if (items.length > MAX_ITEMS) {
       setNotice(`Взял первые ${MAX_ITEMS} предложений. Остальное вставь потом отдельно.`);
       setTimeout(() => setNotice(""), 9000);
@@ -426,7 +454,7 @@ export default function Page() {
                   </span>
                   <span className="start-txt">
                     <b>Начать тренировку</b>
-                    <small>8 готовых фраз · около 5 минут</small>
+                    <small>Готовые фразы · около 5 минут</small>
                   </span>
                 </button>
                 <div className="hero-links">
@@ -761,6 +789,44 @@ export default function Page() {
       </Sheet>
 
       {/* Pro offer: free limit reached, lapsed, or opened from the menu */}
+      {/* The end of a topic: what you did, your streak, and what's next */}
+      <Sheet open={!!done} onOpenChange={(v) => !v && setDone(null)} title="Готово 🎉">
+        {done &&
+          (() => {
+            const at = PACKS.findIndex((p) => p.title === done.label);
+            const next = at >= 0 ? PACKS[(at + 1) % PACKS.length] : todaysSession().pack;
+            return (
+              <div className="done-box">
+                <p className="done-line">
+                  «{done.label}»: {done.count} {plural(done.count, "фраза", "фразы", "фраз")} пройдено.{mounted && mission.complete ? " Задача на сегодня выполнена ✓" : ""}
+                </p>
+                {mounted && st > 0 && (
+                  <p className="done-stats">
+                    🔥 {st} {plural(st, "день", "дня", "дней")} подряд. Завтра эти фразы стоит повторить: так они останутся в голове.
+                  </p>
+                )}
+                <button type="button" className="start-big" onClick={() => startPack(next)}>
+                  <span className="start-ic" aria-hidden>
+                    {next.emoji}
+                  </span>
+                  <span className="start-txt">
+                    <b>Следующая тема</b>
+                    <small>{next.title}</small>
+                  </span>
+                </button>
+                <div className="hero-links">
+                  <button type="button" className="chip-link" onClick={() => startQueue(done.texts.map((t) => ({ text: t })), done.label, !!done.fromLibrary)}>
+                    <RotateCcw size={15} /> Пройти ещё раз
+                  </button>
+                  <button type="button" className="chip-link" onClick={() => (setDone(null), go("progress"))}>
+                    <ChartColumn size={15} /> Мой прогресс
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+      </Sheet>
+
       <ProSheet
         open={!!pro}
         reason={pro?.reason ?? "menu"}
@@ -798,6 +864,7 @@ export default function Page() {
               onPrev={() => setQueue((q) => (q ? { ...q, index: Math.max(0, q.index - 1) } : q))}
               onNext={() => setQueue((q) => (q ? { ...q, index: Math.min(q.items.length - 1, q.index + 1) } : q))}
               onClose={() => setQueue(null)}
+              onFinish={finish}
               onRetry={() => setQueue((q) => (q ? { ...q, items: q.items.map((x, i) => (i === q.index ? { text: x.text } : x)) } : q))}
               onPasscodeNeeded={() => {}}
             />
@@ -809,7 +876,7 @@ export default function Page() {
         {toasts.map((id, i) => {
           const b = BADGES.find((x) => x.id === id);
           return b ? (
-            <motion.div key={`${id}-${i}`} className="toast" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+            <motion.div key={`${id}-${i}`} className="toast" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
               <span>{b.icon}</span>
               <div>
                 <b>{b.title}</b>

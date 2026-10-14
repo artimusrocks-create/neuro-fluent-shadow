@@ -83,4 +83,10 @@ describe("voice first: a free visitor hears a new phrase before its breakdown is
     expect(sixth.status).toBe(429);
     expect((await sixth.json()).error).toBe("limit");
   });
+
+  it("at the limit, a new phrase asked for voice and breakdown together gets no from both", async () => {
+    for (let i = 0; i < FREE_PHRASES; i++) expect((await breakdown(`Phrase ${i} that uses up the day.`)).status).toBe(200);
+    const [a, b] = await Promise.all([speak("One phrase too many."), breakdown("One phrase too many.")]);
+    expect([a.status, b.status]).toEqual([429, 429]);
+  });
 });

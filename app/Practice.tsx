@@ -91,12 +91,13 @@ type Props = {
   onPrev: () => void;
   onNext: () => void;
   onClose: () => void;
+  onFinish?: () => void; // the last phrase is done: show the finish screen
   onRetry: () => void;
   onPasscodeNeeded: () => void;
 };
 
 export default function Practice(props: Props) {
-  const { text, item: s, loading, loadError, label, index, total, fromLibrary, canSend, onPrev, onNext, onClose, onRetry, onPasscodeNeeded } = props;
+  const { text, item: s, loading, loadError, label, index, total, fromLibrary, canSend, onPrev, onNext, onClose, onFinish, onRetry, onPasscodeNeeded } = props;
   const progress = useProgress();
   const { gap, hide, cyrillic, tips, autoplay } = progress.settings;
   const voice = pickVoice(progress.settings.voice);
@@ -458,6 +459,7 @@ export default function Practice(props: Props) {
         dragElastic={0.35}
         onDragEnd={(_, info) => {
           if (info.offset.y < -90 && !isLast) onNext();
+          else if (info.offset.y < -90 && isLast) onFinish?.();
           else if (info.offset.y > 90 && index > 0) onPrev();
         }}
       >
@@ -492,7 +494,7 @@ export default function Practice(props: Props) {
                   <i />
                   <i />
                 </span>
-                Разбираю ударения и склейки. Пока слушай и повторяй.
+                Разбираю ударения и склейки, это секунд 15. Пока слушай и повторяй.
               </p>
             ) : (
               <div className="skeleton" aria-label="Готовлю фразу">
@@ -592,11 +594,15 @@ export default function Practice(props: Props) {
           )}
         </div>
         {progress.counts.echoes === 0 && !busy && phrase && <p className="dock-hint">Голос скажет фразу, а ты повтори в паузе. Три раза подряд.</p>}
-        {!isLast && (
+        {!isLast ? (
           <button type="button" className="swipe-hint" onClick={onNext}>
             <ChevronUp size={14} /> Свайп вверх — следующая фраза
           </button>
-        )}
+        ) : onFinish ? (
+          <button type="button" className="finish-btn" onClick={onFinish}>
+            Готово, это последняя фраза ✓
+          </button>
+        ) : null}
       </div>
 
       {/* Recording */}
@@ -860,15 +866,7 @@ export default function Practice(props: Props) {
               </div>
             )}
             {tips && s.ru_tip && <p className="tip-bubble">{s.ru_tip}</p>}
-            {s.flags && s.flags.length > 0 && (
-              <div className="flags">
-                {s.flags.map((f, i) => (
-                  <div key={i} className="flag">
-                    {f}
-                  </div>
-                ))}
-              </div>
-            )}
+            {/* s.flags (the AI's own "how sure am I" notes) stay out of sight: learners read them as doubt. */}
             <ReportButton key={s.text} text={s.text} where="breakdown" />
           </>
         )}

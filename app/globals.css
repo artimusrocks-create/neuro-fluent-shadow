@@ -797,4 +797,14 @@ a.pill-link, a.logo, a.wide-btn { text-decoration: none; }
 .fast-label { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .02em; }
 .dock-hint { margin: 0; text-align: center; color: var(--muted); font-size: 13px; }
 /* Badge toasts never block a tap */
-.toasts { pointer-events: none; }
+.toasts { pointer-events: none; top: calc(10px + env(safe-area-inset-top, 0px)); bottom: auto; left: 50%; right: auto; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); }
+.toast { padding: 8px 14px; }
+.toast > span { font-size: 20px; }
+
+/* Finish screen and the last-phrase button */
+.finish-btn { align-self: center; height: 44px; padding: 0 20px; border: 0; border-radius: 999px; background: var(--ink); color: var(--on-ink); font-weight: 600; font-size: 15px; }
+.done-box { display: grid; gap: 14px; }
+.done-line { margin: 0; font-size: 17px; font-weight: 600; }
+.done-stats { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+.done-box .start-ic { font-size: 26px; }
+.done-box .hero-links { justify-content: flex-start; }

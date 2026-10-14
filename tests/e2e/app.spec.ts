@@ -86,6 +86,34 @@ test("a pasted text opens at once, one sentence per step, and the voice is ready
   expect(errors).toEqual([]);
 });
 
+test("the end of a topic: a finish screen with the next topic, not a dead end", async ({ page }) => {
+  const errors = await prepare(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: /В кафе и ресторане/ }).click();
+  const practice = page.getByRole("dialog", { name: "Тренировка" });
+  await expect(practice.getByText("В кафе и ресторане · 1 из 8")).toBeVisible();
+  for (let i = 2; i <= 8; i++) {
+    await practice.getByRole("button", { name: "Следующая фраза", exact: true }).click();
+    await expect(practice.getByText(`В кафе и ресторане · ${i} из 8`)).toBeVisible();
+  }
+  await practice.getByRole("button", { name: /Готово, это последняя фраза/ }).click();
+  const finish = page.getByRole("dialog", { name: "Готово 🎉" });
+  await expect(finish.getByText(/8 фраз пройдено/)).toBeVisible();
+  await finish.getByRole("button", { name: /Следующая тема/ }).click();
+  await expect(page.getByRole("dialog", { name: "Тренировка" }).getByText("Аэропорт и путешествия · 1 из 8")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("your own text: the next sentence is prepared while you practice the current one", async ({ page, request }) => {
+  await prepare(page);
+  await page.goto("/");
+  await page.getByLabel("Фраза на английском").fill("I'll walk you through the plan. Then we can take questions. Thanks for joining today.");
+  await page.getByRole("button", { name: "Разобрать" }).click();
+  await expect(page.getByRole("dialog", { name: "Тренировка" }).getByText("Твой текст · 1 из 3")).toBeVisible();
+  const breakdowns = async () => ((await (await request.get(`${MOCK}/__calls?service=anthropic`)).json()) as unknown[]).length;
+  await expect.poll(breakdowns).toBeGreaterThanOrEqual(2); // the first sentence and, ahead of time, the second
+});
+
 test("a phrase pack opens full-screen practice", async ({ page }) => {
   const errors = await prepare(page);
   await page.goto("/");
