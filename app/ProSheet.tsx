@@ -32,6 +32,7 @@ export default function ProSheet({
   startWaiting,
   onClose,
   onActivated,
+  onExtended,
 }: {
   open: boolean;
   reason: ProReason;
@@ -39,6 +40,7 @@ export default function ProSheet({
   startWaiting?: boolean;
   onClose: () => void;
   onActivated: (code: string) => void;
+  onExtended?: () => void;
 }) {
   const [view, setView] = useState<View>("offer");
   const [email, setEmail] = useState("");
@@ -73,7 +75,12 @@ export default function ProSheet({
         stop();
         setPendingClaim(null);
         trackEvent("pro_activated");
-        onActivated(c);
+        if (c.code) onActivated(c.code);
+        else {
+          setNote("Оплата прошла, Pro продлён. Эта почта уже была подписана, поэтому личную ссылку мы отправили на неё — открой письмо.");
+          setView("offer");
+          onExtended?.();
+        }
       } else if (tries > 100) stop(); // ~5 minutes; it also checks again whenever the app comes back to the screen
     };
     const stop = () => {
@@ -88,7 +95,7 @@ export default function ProSheet({
       stop();
       window.removeEventListener("focus", onFocus);
     };
-  }, [open, view, onActivated]);
+  }, [open, view, onActivated, onExtended]);
 
   async function payStars() {
     setError("");
@@ -302,6 +309,7 @@ export default function ProSheet({
             </a>
           )}
           {error && <p className="error-line">{error}</p>}
+          {note && <p className="pro-note">{note}</p>}
           <div className="pro-links">
             <button type="button" className="text-btn" onClick={() => setView("code")}>
               У меня есть код

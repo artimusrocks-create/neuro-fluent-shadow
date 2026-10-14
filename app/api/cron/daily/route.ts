@@ -24,21 +24,24 @@ export async function GET(req: Request) {
   if (!first) return NextResponse.json({ ok: true, skipped: "already ran today" });
 
   await healWebhook();
+  // The teacher's report goes first, so a long broadcast can never swallow it.
+  await notifyTeacher(await digestText());
 
+  // «Фраза дня»: 25 messages a second (Telegram allows ~30), until time runs out.
   const subs = await r.smembers("tg:subs");
   const text = dailyText();
+  const started = Date.now();
   let sent = 0;
-  for (const chatId of subs) {
-    try {
-      await sendWithApp(chatId, text, "🎧 Разобрать и повторить");
-      sent++;
-    } catch (e) {
+  for (let i = 0; i < subs.length && Date.now() - started < 100_000; i += 25) {
+    const batch = subs.slice(i, i + 25);
+    const results = await Promise.allSettled(batch.map((chatId) => sendWithApp(chatId, text, "🎧 Разобрать и повторить")));
+    for (let j = 0; j < results.length; j++) {
+      const res = results[j];
+      if (res.status === "fulfilled") sent++;
       // User blocked the bot → stop sending to them.
-      if (String(e).includes("blocked") || String(e).includes("deactivated")) await r.srem("tg:subs", chatId);
+      else if (/blocked|deactivated|chat not found/.test(String(res.reason))) await r.srem("tg:subs", batch[j]);
     }
-    await new Promise((res) => setTimeout(res, 50)); // stay under Telegram's rate limit
+    await new Promise((res) => setTimeout(res, 1000));
   }
-
-  await notifyTeacher((await digestText()) + `\n📨 Фразу дня получили: ${sent}`);
-  return NextResponse.json({ ok: true, sent });
+  return NextResponse.json({ ok: true, sent, of: subs.length });
 }

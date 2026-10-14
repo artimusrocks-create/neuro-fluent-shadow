@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { redis, dayKey } from "@/lib/store";
 import type { Student } from "@/lib/auth";
-import { extendUntil, getClaim, grantPro, handleLavaEvent, lavaAuthOk, payLog, validEmail, validNonce } from "@/lib/pro";
+import { EXTENDED, InProgress, extendUntil, getClaim, grantPro, handleLavaEvent, lavaAuthOk, payLog, validEmail, validNonce } from "@/lib/pro";
 import { mock } from "./helpers";
 
 const DAY = 86400000;
@@ -107,15 +107,15 @@ describe("lava.top subscription lifecycle", () => {
     const second = Date.parse((await student(id)).until!);
     expect(second - first).toBeGreaterThan(30.9 * DAY);
 
-    const willExpireAt = new Date(Date.now() + 10 * DAY).toISOString();
+    const willExpireAt = new Date(Date.now() + 70 * DAY).toISOString();
     expect(await handleLavaEvent({ eventType: "subscription.cancelled", contractId: "c-3", buyer: { email: "max@test.dev" }, willExpireAt })).toBe("cancelled");
     let s = await student(id);
     expect(s.autoRenew).toBe(false);
-    expect(s.until).toBe(willExpireAt);
+    expect(s.until).toBe(willExpireAt); // lava's date is later than ours here, so it wins
 
     expect(await handleLavaEvent({ event_type: "refund.success", event_id: "rf-1", data: { customer_email: "max@test.dev", amount: 690, currency: "RUB" } })).toBe("revoked");
     s = await student(id);
-    expect(Date.parse(s.until!)).toBeLessThanOrEqual(Date.now());
+    expect(Date.parse(willExpireAt) - Date.parse(s.until!)).toBeGreaterThan(29.9 * DAY); // one month taken back
   });
 
   it("unknown events are ignored", async () => {
@@ -143,5 +143,48 @@ describe("grantPro", () => {
     const a = await grantPro({ src: "manual", tg: 9, days: 90 });
     const b = await grantPro({ src: "stars", tg: 9, until: new Date(Date.now() + 30 * DAY).toISOString() });
     expect(b.student.until).toBe(a.student.until);
+  });
+});
+
+describe("money edge cases (from the review)", () => {
+  beforeEach(async () => {
+    await mock().reset();
+  });
+
+  it("paying with an email that already has Pro does NOT hand that account's code to the paying browser", async () => {
+    const r = redis()!;
+    const victim = await grantPro({ src: "manual", email: "victim@example.com", days: 30 });
+    await r.set("lava:contract:c-attack", nonce);
+    await handleLavaEvent({ eventType: "payment.success", contractId: "c-attack", buyer: { email: "victim@example.com" }, amount: 690, currency: "RUB", status: "subscription-active" });
+    expect(await getClaim(nonce)).toBe(EXTENDED);
+    expect(await getClaim(nonce)).not.toBe(victim.student.code);
+  });
+
+  it("cancelling a card subscription never removes time added on top", async () => {
+    const r = redis()!;
+    await handleLavaEvent({ eventType: "payment.success", contractId: "c-keep", buyer: { email: "keep@example.com" }, amount: 690, currency: "RUB", status: "subscription-active" });
+    const id = (await r.get<string>("pro:email:keep@example.com"))!;
+    await grantPro({ src: "manual", email: "keep@example.com", days: 90 }); // ~121 days total
+    const before = Date.parse((await student(id)).until!);
+    await handleLavaEvent({ eventType: "subscription.cancelled", contractId: "c-keep", buyer: { email: "keep@example.com" }, willExpireAt: new Date(Date.now() + 31 * DAY).toISOString() });
+    expect(Date.parse((await student(id)).until!)).toBe(before);
+  });
+
+  it("a refund takes back one month, not everything, and stops renewal at lava.top", async () => {
+    const r = redis()!;
+    await handleLavaEvent({ eventType: "payment.success", contractId: "c-two", buyer: { email: "two@example.com" }, amount: 690, currency: "RUB", status: "subscription-active" });
+    await handleLavaEvent({ eventType: "subscription.recurring.payment.success", contractId: "c-two-b", parentContractId: "c-two", buyer: { email: "two@example.com" }, amount: 690, currency: "RUB", status: "subscription-active" });
+    const id = (await r.get<string>("pro:email:two@example.com"))!;
+    const before = Date.parse((await student(id)).until!);
+    await handleLavaEvent({ event_type: "refund.success", event_id: "rf-two", data: { customer_email: "two@example.com", amount: 690, currency: "RUB" } });
+    const s = await student(id);
+    expect(before - Date.parse(s.until!)).toBeGreaterThan(29.9 * DAY);
+    expect(Date.parse(s.until!)).toBeGreaterThan(Date.now() + 25 * DAY);
+    expect(s.autoRenew).toBe(false);
+  });
+
+  it("an event that's still being processed makes lava.top retry instead of being dropped", async () => {
+    await redis()!.set("lock:lava:payment.success:c-busy", 1, { ex: 60 });
+    await expect(handleLavaEvent({ eventType: "payment.success", contractId: "c-busy", buyer: { email: "busy@example.com" }, amount: 1, currency: "USD", status: "completed" })).rejects.toBeInstanceOf(InProgress);
   });
 });

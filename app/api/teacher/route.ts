@@ -4,7 +4,7 @@ import { claimCode, newId, redis } from "@/lib/store";
 import { getRecs, publicRec, Rec } from "@/lib/recs";
 import { jsonError } from "@/lib/server";
 import { setupTelegram, tg, tgConfigured } from "@/lib/telegram";
-import { extendUntil, getStudent, grantPro, logPay, offer, patchStudent, payLog, personalLink, proAccounts, revokePro, validEmail } from "@/lib/pro";
+import { extendUntil, getStudent, grantPro, logPay, offer, patchStudent, payLog, personalLink, proAccounts, refundMonth, revokePro, validEmail } from "@/lib/pro";
 import { stats } from "@/lib/analytics";
 
 export const runtime = "nodejs";
@@ -176,7 +176,7 @@ export async function POST(req: Request) {
       } catch (e) {
         return jsonError(e instanceof Error ? e.message : "Telegram не вернул звёзды.", 502);
       }
-      await revokePro(s.id);
+      await refundMonth(s.id); // one month back (the refunded payment), renewals off
       await logPay({ src: "stars", kind: "refund", amount: 0, currency: "XTR", who: s.tgUser ? `@${s.tgUser}` : s.name, studentId: s.id });
       return NextResponse.json({ ok: true });
     }

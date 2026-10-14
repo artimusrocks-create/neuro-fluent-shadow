@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   }
   const file = form.get("file");
   if (!(file instanceof Blob) || file.size === 0) return jsonError("Запись пустая. Запиши ещё раз.", 400);
-  if (file.size > 5 * 1024 * 1024) return jsonError("Запись слишком длинная. Одна фраза — до минуты.", 400);
+  if (file.size > 1.5 * 1024 * 1024) return jsonError("Запись слишком длинная. Одна фраза — до полуминуты.", 400);
 
   const out = new FormData();
   out.append("model_id", "scribe_v1");

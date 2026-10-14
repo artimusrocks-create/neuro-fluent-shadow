@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { breakdownParts } from "@/lib/prompts";
 import { askClaudeJSON, jsonError, MAX_INPUT_CHARS } from "@/lib/server";
-import { freePhraseGate, getWho, isResponse, useLimit } from "@/lib/auth";
+import { freePhraseGate, getWho, isResponse, rememberUnlocked, useLimit } from "@/lib/auth";
 import { hash, redis } from "@/lib/store";
 import { count } from "@/lib/analytics";
 
@@ -29,9 +29,13 @@ export async function POST(req: Request) {
   // Same phrase → same answer, free.
   const key = `bd:${body.cyrillic ? 1 : 0}:${hash(text.toLowerCase())}`;
   const r = redis();
+  const unlock = (d: { sentences?: { text?: string }[] }) => rememberUnlocked(who, (d.sentences ?? []).map((s) => String(s.text ?? "")).concat(text)).catch(() => {});
   if (r) {
-    const hit = await r.get(key).catch(() => null);
-    if (hit) return NextResponse.json(hit);
+    const hit = await r.get<{ sentences: { text?: string }[] }>(key).catch(() => null);
+    if (hit) {
+      await unlock(hit);
+      return NextResponse.json(hit);
+    }
   }
 
   if (who.role !== "demo") {
@@ -45,6 +49,7 @@ export async function POST(req: Request) {
       return jsonError("Разбор пришёл пустым. Попробуй ещё раз.", 502);
     }
     if (r) await r.set(key, data, { ex: 90 * 86400 }).catch(() => {});
+    await unlock(data as { sentences: { text?: string }[] });
     await count("ai_breakdown");
     return NextResponse.json(data);
   } catch (e) {

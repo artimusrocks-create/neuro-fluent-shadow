@@ -19,8 +19,8 @@ export async function tg(method: string, payload: Record<string, unknown>) {
   return data.result;
 }
 
-/** Updates the bot needs: messages, and the pre-checkout step of Telegram Stars payments. */
-export const BOT_UPDATES = ["message", "pre_checkout_query"];
+/** Updates the bot needs: messages, the pre-checkout step of Stars payments, and subscription changes (cancel / failed renewal). */
+export const BOT_UPDATES = ["message", "pre_checkout_query", "subscription"];
 
 /** Point the bot at this app: webhook, menu button, commands. Safe to run again any time. */
 export async function setupTelegram(origin: string) {
@@ -35,6 +35,7 @@ export async function setupTelegram(origin: string) {
       { command: "pro", description: "Shadow Pro: больше фраз каждый день" },
       { command: "code", description: "Моя личная ссылка (для Pro)" },
       { command: "paysupport", description: "Вопросы по оплате" },
+      { command: "terms", description: "Условия и конфиденциальность" },
       { command: "stop", description: "Не присылать фразу дня" },
     ],
   });

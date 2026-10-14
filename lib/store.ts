@@ -15,7 +15,7 @@ export function redis(): Redis | null {
 export const hash = (s: string) => createHash("sha1").update(s).digest("hex");
 export const newId = (n = 8) => randomBytes(n).toString("hex");
 
-/** Human-friendly student code, e.g. "lena-7k3q". */
+/** Personal access code, e.g. "lena-7k3q9xmd". 8 random characters: not guessable. */
 export function newCode(name: string) {
   const translit: Record<string, string> = {
     а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p",
@@ -30,7 +30,7 @@ export function newCode(name: string) {
       .replace(/[^a-z0-9]/g, "")
       .slice(0, 10) || "student";
   const alphabet = "23456789abcdefghjkmnpqrstuvwxyz";
-  const tail = Array.from(randomBytes(4), (b) => alphabet[b % alphabet.length]).join("");
+  const tail = Array.from(randomBytes(8), (b) => alphabet[b % alphabet.length]).join("");
   return `${base}-${tail}`;
 }
 

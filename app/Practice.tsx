@@ -253,6 +253,11 @@ export default function Practice(props: Props) {
       let raf = 0;
       const t0 = performance.now();
       const loop = () => {
+        // One phrase never needs more than 30 seconds: stop by itself (keeps uploads small).
+        if (performance.now() - t0 > 30000) {
+          if (rec.state !== "inactive") rec.stop();
+          return;
+        }
         analyser.getByteFrequencyData(data);
         const next: number[] = [];
         for (let i = 0; i < BARS; i++) {

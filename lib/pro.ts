@@ -66,6 +66,7 @@ export type Grant = {
   days?: number;
   lavaParent?: string;
   starsCharge?: string;
+  starsSub?: string;
   autoRenew?: boolean;
 };
 
@@ -109,6 +110,7 @@ export async function grantPro(g: Grant): Promise<{ student: Student; created: b
       tgUser: g.tgUser ?? existing.tgUser,
       lavaParent: g.lavaParent ?? existing.lavaParent,
       starsCharge: g.starsCharge ?? existing.starsCharge,
+      starsSub: g.starsSub ?? existing.starsSub,
     });
   } else {
     const name = (g.name || (email ? email.split("@")[0] : "") || g.tgUser || "Pro").slice(0, 40);
@@ -127,6 +129,7 @@ export async function grantPro(g: Grant): Promise<{ student: Student; created: b
       tgUser: g.tgUser,
       lavaParent: g.lavaParent,
       starsCharge: g.starsCharge,
+      starsSub: g.starsSub,
     });
   }
   await r.hset("students", { [student.id]: student });
@@ -147,19 +150,53 @@ export async function patchStudent(id: string, patch: Partial<Student>): Promise
   return next;
 }
 
-/** Stop access right now (refund, chargeback, teacher's decision). */
-export const revokePro = (id: string) => patchStudent(id, { until: new Date().toISOString(), autoRenew: false });
+/** Stop access right now (teacher's decision) and stop future charges. */
+export async function revokePro(id: string) {
+  const s = await getStudent(id);
+  if (s) await cancelRenewal(s);
+  return patchStudent(id, { until: new Date().toISOString(), autoRenew: false });
+}
+
+/** Take back one paid month (a refunded payment), never below today, and stop future charges. */
+export async function refundMonth(id: string) {
+  const s = await getStudent(id);
+  if (!s) return null;
+  await cancelRenewal(s);
+  const end = s.until ? Date.parse(s.until) - PRO_DAYS * DAY : 0;
+  return patchStudent(id, { until: new Date(Math.max(Date.now(), end)).toISOString(), autoRenew: false });
+}
+
+/** Ask the payment provider not to charge this person again. Never throws; returns whether it worked. */
+export async function cancelRenewal(s: Student): Promise<boolean> {
+  try {
+    if (s.src === "stars" && s.tg && (s.starsSub || s.starsCharge) && tgConfigured()) {
+      await tg("editUserStarSubscription", { user_id: s.tg, telegram_payment_charge_id: s.starsSub ?? s.starsCharge, is_canceled: true });
+      return true;
+    }
+    if (s.lavaParent && s.email && process.env.LAVA_API_KEY) {
+      const res = await fetch(`${lavaBase()}/api/v1/subscriptions?contractId=${encodeURIComponent(s.lavaParent)}&email=${encodeURIComponent(s.email)}`, {
+        method: "DELETE",
+        headers: { "X-Api-Key": process.env.LAVA_API_KEY },
+      });
+      return res.ok || res.status === 404;
+    }
+  } catch {}
+  return false;
+}
 
 /**
  * Run `fn` once per `key`, even if a payment provider delivers the same event twice.
  * If `fn` fails, the key is released so the provider's retry gets processed.
  */
+export class InProgress extends Error {}
+
 export async function once<T>(key: string, fn: () => Promise<T>): Promise<T | "duplicate"> {
   const r = redis();
   if (!r) throw new Error("no db");
   if (await r.get(`done:${key}`)) return "duplicate";
   const locked = await r.set(`lock:${key}`, 1, { nx: true, ex: 120 });
-  if (!locked) return "duplicate";
+  // Another delivery is working on it right now: answer with an error so the provider tries again later.
+  if (!locked) throw new InProgress(key);
   try {
     const out = await fn();
     await r.set(`done:${key}`, 1, { ex: 400 * 86400 });
@@ -170,6 +207,8 @@ export async function once<T>(key: string, fn: () => Promise<T>): Promise<T | "d
 }
 
 // ---------- Claims: how a browser learns its new code after paying somewhere else ----------
+/** Stored instead of a code when the payment extended an account that already existed (link sent by email). */
+export const EXTENDED = "@extended";
 export async function setClaim(nonce: string | null | undefined, code: string) {
   const r = redis();
   if (!r || !nonce || !validNonce(nonce)) return;
@@ -355,8 +394,10 @@ async function applyLava(ev: LavaEvent, type: string, base?: string): Promise<st
         lavaParent: subscription ? ev.contractId : undefined,
         autoRenew: subscription,
       });
+      // The paying browser gets the code only for a brand-new account. If this email already had Pro,
+      // whoever typed it might not own it: the link goes to that mailbox instead.
       const nonce = ev.contractId ? await r.get<string>(`lava:contract:${ev.contractId}`) : null;
-      await setClaim(nonce, student.code);
+      await setClaim(nonce, created ? student.code : EXTENDED);
       await logPay({ src: "lava", kind: "new", amount, currency, who: email, studentId: student.id });
       await notifyTeacher(`💸 Новый Pro (карта): ${email} — ${amount} ${currency}${created ? "" : " (продление)"}`);
       await sendAccessEmail(student, base);
@@ -371,9 +412,11 @@ async function applyLava(ev: LavaEvent, type: string, base?: string): Promise<st
     case "subscription.cancelled": {
       const id = (ev.contractId && (await r.get<string>(`pro:lava:${ev.contractId}`))) || (email && (await r.get<string>(`pro:email:${email}`)));
       if (id) {
+        // Keep whichever end is later: lava's paid-until date, or time added on top (manual days, another payment).
         const s = await getStudent(id);
-        const until = ev.willExpireAt && Date.parse(ev.willExpireAt) ? new Date(ev.willExpireAt).toISOString() : s?.until;
-        await patchStudent(id, { autoRenew: false, until });
+        const lava = ev.willExpireAt && Date.parse(ev.willExpireAt) ? Date.parse(ev.willExpireAt) : 0;
+        const ours = s?.until ? Date.parse(s.until) : 0;
+        await patchStudent(id, { autoRenew: false, until: new Date(Math.max(lava, ours)).toISOString() });
       }
       await logPay({ src: "lava", kind: "cancel", amount: 0, currency: "", who: email, studentId: id || undefined });
       await notifyTeacher(`🚪 Отменили подписку: ${email || "?"}. Доступ до ${fmtDate(ev.willExpireAt)}.`);
@@ -387,9 +430,11 @@ async function applyLava(ev: LavaEvent, type: string, base?: string): Promise<st
     case "refund.success":
     case "chargeback.initiated": {
       const id = email ? await r.get<string>(`pro:email:${email}`) : null;
-      if (id) await revokePro(id);
+      const s = id ? await refundMonth(id) : null;
       await logPay({ src: "lava", kind: "refund", amount, currency, who: email, studentId: id || undefined, note: type });
-      await notifyTeacher(`↩️ ${type === "refund.success" ? "Возврат" : "Чарджбэк"}: ${email} — ${amount} ${currency}. Доступ закрыт.`);
+      await notifyTeacher(
+        `↩️ ${type === "refund.success" ? "Возврат" : "Чарджбэк"}: ${email} — ${amount} ${currency}. Минус месяц доступа${s?.until ? `, теперь до ${fmtDate(s.until)}` : ""}, автопродление выключено.`
+      );
       return "revoked";
     }
   }

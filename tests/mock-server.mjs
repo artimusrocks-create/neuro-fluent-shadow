@@ -352,6 +352,9 @@ export function createMockServer() {
       const method = tgm[2];
       const body = json() ?? {};
       record("telegram", { method, body });
+      if (method === "sendMessage" && String(body.chat_id) === "666") {
+        return send(res, 403, { ok: false, error_code: 403, description: "Forbidden: bot was blocked by the user" });
+      }
       const results = {
         getMe: { id: 42, is_bot: true, username: "nf_shadow_test_bot" },
         createInvoiceLink: `https://t.me/$mockinvoice_${Math.random().toString(36).slice(2, 8)}`,

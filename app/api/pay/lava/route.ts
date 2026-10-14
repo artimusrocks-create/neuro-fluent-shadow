@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { handleLavaEvent, LavaEvent, lavaAuthOk } from "@/lib/pro";
+import { handleLavaEvent, InProgress, LavaEvent, lavaAuthOk } from "@/lib/pro";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -16,6 +16,7 @@ export async function POST(req: Request) {
     const result = await handleLavaEvent(body, new URL(req.url).origin);
     return NextResponse.json({ ok: true, result });
   } catch (e) {
+    if (e instanceof InProgress) return NextResponse.json({ ok: false, error: "in progress, retry later" }, { status: 503 });
     console.error("lava webhook failed", e);
     // A 5xx makes lava.top retry later.
     return NextResponse.json({ ok: false }, { status: 500 });

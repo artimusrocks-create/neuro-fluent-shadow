@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import SiteHeader from "../_site/SiteHeader";
 import SiteFooter from "../_site/SiteFooter";
+import StoreHide from "../_site/StoreHide";
 import { ANDROID_APK, TELEGRAM_BOT } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -19,6 +20,7 @@ export default function Download() {
         <h1 className="site-h1">Установить тренажёр</h1>
         <p className="site-lead">Везде один и тот же тренажёр: что сохранил на телефоне, то и на компьютере (если у тебя Pro или код от преподавателя).</p>
 
+        <StoreHide>
         <section className="card-sec">
           <h2>Android</h2>
           <a className="wide-btn" href={ANDROID_APK} download>
@@ -31,6 +33,7 @@ export default function Download() {
           </ol>
           <p className="muted">Не хочешь качать файл? Открой этот сайт в Chrome → меню ⋮ → «Установить приложение». Получится то же самое.</p>
         </section>
+        </StoreHide>
 
         <section className="card-sec">
           <h2>iPhone</h2>

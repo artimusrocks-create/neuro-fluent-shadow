@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { jsonError } from "@/lib/server";
-import { getWho, isResponse, useLimit } from "@/lib/auth";
+import { CONTACT_URL, getWho, isResponse, mayVoice, useChars, useLimit } from "@/lib/auth";
 import { blobPut, blobReadText, hasBlob, hash, redis, Stored } from "@/lib/store";
 import { isKnownVoice } from "@/lib/voices";
 
@@ -73,7 +73,11 @@ export async function POST(req: Request) {
     }
   }
 
-  const limited = await useLimit(who, "speak");
+  // Free visitors can voice only the phrases they unlocked today (and pieces of them), not any text.
+  if (!(await mayVoice(who, text))) {
+    return NextResponse.json({ error: "limit", message: "Бесплатно озвучиваются только фразы, которые ты сегодня разобрал.", contact: CONTACT_URL, upgrade: true }, { status: 429 });
+  }
+  const limited = (await useLimit(who, "speak")) ?? (await useChars(who, text.length));
   if (limited) return limited;
 
   // The "with-timestamps" endpoint returns the audio plus the time each character is spoken,

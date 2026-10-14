@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { dayKey, redis } from "./store";
+import { PACKS } from "./packs";
 
 export type Kind = "breakdown" | "words" | "speak" | "score";
 export type Limits = Record<Kind, number>;
@@ -20,6 +21,7 @@ export type Student = {
   autoRenew?: boolean;
   lavaParent?: string; // lava.top subscription (first contract id)
   starsCharge?: string; // last Telegram Stars charge id (needed for refunds)
+  starsSub?: string; // charge id of the first payment of the Stars subscription (needed to stop renewals)
 };
 export type Who =
   | { role: "teacher"; id: "teacher"; name: string }
@@ -57,9 +59,15 @@ export function limitsFor(who: Who): Limits | null {
   return { ...base, ...(who.student.limits ?? {}) };
 }
 
+/** The caller's network address. IPv6 is cut to its /64 block: one home or phone gets a whole block, so single addresses are free to rotate. */
 export function clientIp(req: Request) {
-  return (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+  if (!ip.includes(":")) return ip;
+  return ip.split(":").slice(0, 4).join(":") + "::/64";
 }
+
+/** Daily voice budget in characters (ElevenLabs bills per character). Free visitors also have per-network and global caps. */
+export const CHAR_LIMITS = { demo: 4000, demoIp: 12000, demoAll: 150000, pro: 30000, class: 40000 };
 
 /** Figure out who is calling. Returns a Who, or a ready error response. */
 export async function getWho(req: Request): Promise<Who | NextResponse> {
@@ -67,11 +75,17 @@ export async function getWho(req: Request): Promise<Who | NextResponse> {
   const teacherCode = process.env.APP_PASSCODE;
   const r = redis();
 
-  if (code && teacherCode && code === teacherCode) return { role: "teacher", id: "teacher", name: "Препод" };
+  // Wrong codes are counted per network: after 30 misses a day we stop checking codes from there,
+  // so nobody can guess a student's code or the teacher password by trying many.
+  const missKey = `badcode:${clientIp(req)}:${dayKey()}`;
+  const guessing = code && r ? Number((await r.get<number>(missKey)) ?? 0) >= 30 : false;
+
+  if (code && teacherCode && !guessing && code === teacherCode) return { role: "teacher", id: "teacher", name: "Препод" };
 
   let lapsed: Student | undefined;
-  if (code && r) {
+  if (code && r && !guessing) {
     const id = await r.get<string>(`code:${code.toLowerCase()}`);
+    if (!id) await bump(missKey, 2).catch(() => 0);
     if (id) {
       const student = await r.hget<Student>("students", id);
       if (student) {
@@ -137,6 +151,29 @@ export async function useLimit(who: Who, kind: Kind): Promise<NextResponse | nul
   return null;
 }
 
+/** Count `n` voice characters for today. Returns an error response once over budget. */
+export async function useChars(who: Who, n: number): Promise<NextResponse | null> {
+  if (who.role === "teacher") return null;
+  const r = redis();
+  if (!r) return null;
+  const day = dayKey();
+  const incr = async (key: string) => {
+    const v = await r.incrby(key, n);
+    if (v === n) await r.expire(key, 2 * 86400);
+    return v;
+  };
+  if (who.role === "demo") {
+    const [mine, ip, all] = await Promise.all([incr(`chars:${who.id}:${day}`), incr(`charsip:${who.ip}:${day}`), incr(`charsall:${day}`)]);
+    if (mine > CHAR_LIMITS.demo || ip > CHAR_LIMITS.demoIp || all > CHAR_LIMITS.demoAll * globalScale()) {
+      return deny("Бесплатная озвучка на сегодня закончилась. Завтра будет ещё, а с Pro — больше.", 429, { upgrade: true, contact: CONTACT_URL });
+    }
+    return null;
+  }
+  const limit = who.student.plan === "pro" ? CHAR_LIMITS.pro : CHAR_LIMITS.class;
+  if ((await incr(`chars:${who.id}:${day}`)) > limit) return deny("Дневной лимит озвучки исчерпан. Продолжим завтра.", 429);
+  return null;
+}
+
 /** Undo a counted use (e.g. the answer came from cache and cost nothing). */
 export async function refund(who: Who, kind: Kind) {
   if (who.role === "teacher") return;
@@ -166,24 +203,48 @@ export async function freePhraseGate(who: Who, text: string): Promise<NextRespon
   if (!r) return null;
   const day = dayKey();
   const key = `free:${who.id}:${day}`;
-  const ipKey = `freeip:${who.ip}:${day}`;
+  const counters = [`freecnt:${who.id}:${day}`, `freecntip:${who.ip}:${day}`, `useall:${day}:breakdown`];
   const h = text.trim().toLowerCase();
-  if (await r.sismember(key, h)) return null;
-  const [mine, ipCount, all] = await Promise.all([r.scard(key), r.scard(ipKey), r.get<number>(`useall:${day}:breakdown`)]);
-  const limited = (message: string) =>
-    NextResponse.json({ error: "limit", message, contact: CONTACT_URL, upgrade: true }, { status: 429 });
-  if (Number(all ?? 0) >= DEMO_GLOBAL_LIMITS.breakdown * globalScale()) {
-    return limited("Бесплатные фразы на сегодня уже разобрали. Завтра будут новые, а с Pro можно прямо сейчас.");
-  }
-  if (mine >= FREE_PHRASES || ipCount >= DEMO_IP_LIMITS.breakdown) {
-    return limited(`Бесплатно — ${FREE_PHRASES} фраз в день. Завтра будет ещё ${FREE_PHRASES}.`);
-  }
-  await r.sadd(key, h);
-  await r.sadd(ipKey, h);
+  if (await r.sismember(key, h)) return null; // already opened today: free
+  if (!(await r.sadd(key, h))) return null; // opened by a request running at the same moment: free
   await r.expire(key, 2 * 86400);
-  await r.expire(ipKey, 2 * 86400);
-  await bump(`useall:${day}:breakdown`, 2);
-  return null;
+  // Counters hand out a unique number to every request, so many requests at once can't slip past the limit.
+  const [mine, ip, all] = await Promise.all(counters.map((k) => bump(k, 2)));
+  const over =
+    all > DEMO_GLOBAL_LIMITS.breakdown * globalScale()
+      ? "Бесплатные фразы на сегодня уже разобрали. Завтра будут новые, а с Pro можно прямо сейчас."
+      : mine > FREE_PHRASES || ip > DEMO_IP_LIMITS.breakdown
+        ? `Бесплатно — ${FREE_PHRASES} фраз в день. Завтра будет ещё ${FREE_PHRASES}.`
+        : null;
+  if (!over) return null;
+  await Promise.all([r.srem(key, h), ...counters.map((k) => r.decr(k))]);
+  return NextResponse.json({ error: "limit", message: over, contact: CONTACT_URL, upgrade: true }, { status: 429 });
+}
+
+/** Sentences a free visitor unlocked today: only these (and their pieces) may be voiced for free. */
+export async function rememberUnlocked(who: Who, sentences: string[]) {
+  if (who.role !== "demo") return;
+  const r = redis();
+  if (!r || !sentences.length) return;
+  const key = `freetxt:${who.id}:${dayKey()}`;
+  await r.sadd(key, ...(sentences.map((s) => s.trim().toLowerCase()).filter(Boolean) as [string, ...string[]]));
+  await r.expire(key, 2 * 86400);
+}
+
+const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9']+/g, " ").trim();
+/** Phrase-pack sentences are open to everyone (most of their audio ships pre-made anyway). */
+const PACK_TEXT = PACKS.flatMap((p) => p.phrases).map(squash);
+
+/** May this free visitor voice this text? Only pieces of sentences they unlocked today. */
+export async function mayVoice(who: Who, text: string): Promise<boolean> {
+  if (who.role !== "demo") return true;
+  const r = redis();
+  if (!r) return true;
+  const t = squash(text);
+  if (!t) return false;
+  if (PACK_TEXT.some((s) => s.includes(t))) return true;
+  const unlocked = await r.smembers(`freetxt:${who.id}:${dayKey()}`);
+  return unlocked.some((s) => squash(s).includes(t));
 }
 
 export async function freeUsed(who: Who): Promise<number> {

@@ -3,9 +3,12 @@
 import { ReactNode, useEffect, useState } from "react";
 import { isStoreApp } from "@/lib/client";
 
-/** Hides prices and "buy" buttons inside the Google Play app (Play's payment rules). */
+/**
+ * Prices, payment methods and APK downloads: hidden inside the Google Play app (Play's rules).
+ * Hidden until the check runs, so they never flash inside the app.
+ */
 export default function StoreHide({ children }: { children: ReactNode }) {
-  const [hide, setHide] = useState(false);
-  useEffect(() => setHide(isStoreApp()), []);
-  return hide ? null : <>{children}</>;
+  const [show, setShow] = useState(false);
+  useEffect(() => setShow(!isStoreApp()), []);
+  return show ? <>{children}</> : null;
 }

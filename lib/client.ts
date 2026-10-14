@@ -82,6 +82,13 @@ export class ApiError extends Error {
   }
 }
 
+/** Inside the Google Play app, limit messages must not mention buying anything. */
+function apiError(data: { error?: string; message?: string }, status: number) {
+  const kind = errKind(data?.error);
+  const message = kind === "limit" && isStoreApp() ? "На сегодня бесплатный лимит закончился. Завтра будет ещё." : data?.message || `Запрос не прошёл (${status}).`;
+  return new ApiError(kind, message);
+}
+
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(path, {
     method: "POST",
@@ -89,9 +96,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new ApiError(errKind(data?.error), data?.message || `Запрос не прошёл (${res.status}).`);
-  }
+  if (!res.ok) throw apiError(data, res.status);
   return data as T;
 }
 
@@ -117,7 +122,7 @@ export type Me = {
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { ...init, headers: { ...(init?.headers ?? {}), ...authHeaders() } });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(errKind(data?.error), data?.message || `Запрос не прошёл (${res.status}).`);
+  if (!res.ok) throw apiError(data, res.status);
   return data as T;
 }
 
@@ -159,9 +164,7 @@ export async function fetchScoreWords(take: Blob): Promise<{ text: string; words
   fd.append("file", take, "take.webm");
   const res = await fetch("/api/score", { method: "POST", headers: authHeaders(), body: fd });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new ApiError(errKind(data?.error), data?.message || `Запрос не прошёл (${res.status}).`);
-  }
+  if (!res.ok) throw apiError(data, res.status);
   return data;
 }
 
@@ -395,11 +398,12 @@ export const startStars = (nonce: string) => post<{ link: string; bot: string | 
 export const startCard = (nonce: string, email: string, currency: "RUB" | "USD" | "EUR") =>
   post<{ url: string }>("/api/pro/checkout", { nonce, email, currency, utm: savedUtm() });
 export const restoreAccess = (email: string) => post<{ sent?: boolean; manual?: boolean; contact?: string }>("/api/pro/restore", { email });
-export async function checkClaim(nonce: string): Promise<string | null> {
+/** Has the payment for this checkout arrived? `code` for a new account; `extended` if it extended an account that already had this email. */
+export async function checkClaim(nonce: string): Promise<{ code?: string; extended?: boolean } | null> {
   try {
     const res = await fetch(`/api/pro/claim?nonce=${encodeURIComponent(nonce)}`, { cache: "no-store" });
-    const data = (await res.json()) as { code?: string };
-    return data.code ?? null;
+    const data = (await res.json()) as { code?: string; extended?: boolean };
+    return data.code || data.extended ? data : null;
   } catch {
     return null;
   }

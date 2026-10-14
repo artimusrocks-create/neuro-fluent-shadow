@@ -50,7 +50,7 @@ describe("API routes", () => {
     expect(await ok.json()).toEqual({ ok: true, result: "granted" });
 
     const claim = await (await claimGET(req(`/api/pro/claim?nonce=${nonce}`))).json();
-    expect(claim.code).toMatch(/^max-[a-z0-9]{4}$/);
+    expect(claim.code).toMatch(/^max-[a-z0-9]{8}$/);
     const me = await (await meGET(req("/api/me", { headers: { "x-passcode": claim.code } }))).json();
     expect(me.plan).toBe("pro");
     expect(me.pro.autoRenew).toBe(true);

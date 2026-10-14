@@ -84,6 +84,8 @@ export default function Page() {
   const [pro, setPro] = useState<{ reason: ProReason; waiting?: boolean } | null>(null);
   const [store, setStore] = useState(false);
   const [notice, setNotice] = useState("");
+  const meRef = useRef<Me | null>(null);
+  meRef.current = me;
   const recRef = useRef<MediaRecorder | null>(null);
   const loadingRef = useRef<Set<string>>(new Set());
 
@@ -105,7 +107,11 @@ export default function Page() {
   }
 
   function openPro(reason: ProReason) {
-    if (reason === "limit") trackEvent("limit");
+    if (reason === "limit") {
+      trackEvent("limit");
+      // Pro and the teacher's students have their own (bigger) limits: no point offering them Pro.
+      if (meRef.current && meRef.current.plan !== "free") return;
+    }
     setPro({ reason });
   }
 
@@ -126,7 +132,8 @@ export default function Page() {
     if (c) {
       setPendingClaim(null);
       trackEvent("pro_activated");
-      activated(c);
+      if (c.code) activated(c.code);
+      else setNotice("Оплата прошла, Pro продлён. Личная ссылка пришла на почту.");
     }
   }
 
@@ -689,7 +696,12 @@ export default function Page() {
           </a>
         )}
         <p className="legal-links">
-          <a href="/start">О приложении</a> · <a href="/phrases">Все фразы</a> · <a href="/terms">Условия</a> · <a href="/privacy">Конфиденциальность</a> ·{" "}
+          {!store && (
+            <>
+              <a href="/start">О приложении</a> · <a href="/terms">Условия</a> ·{" "}
+            </>
+          )}
+          <a href="/phrases">Все фразы</a> · <a href="/privacy">Конфиденциальность</a> ·{" "}
           <a href={me?.free?.contact || "https://t.me/rawmeatsalad"} target="_blank" rel="noopener noreferrer">
             Написать Артёму
           </a>

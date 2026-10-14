@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import SiteHeader from "../_site/SiteHeader";
 import SiteFooter from "../_site/SiteFooter";
+import StoreHide from "../_site/StoreHide";
 import { CONTACT, LEGAL, PRICES } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -38,6 +39,7 @@ export default function Terms() {
         <h2>2. Бесплатный доступ</h2>
         <p>Без оплаты доступны 5 своих фраз в день, готовые наборы фраз и оценка произношения в разумных пределах. Лимиты могут меняться.</p>
 
+        <StoreHide>
         <h2>3. Подписка Shadow Pro</h2>
         <ul>
           <li>
@@ -61,6 +63,7 @@ export default function Terms() {
           В течение 7 дней после оплаты вернём деньги полностью, если тренажёр тебе не подошёл, — просто напиши {tgLink}. Позже деньги за уже прошедший
           период не возвращаются. Возврат за звёзды делается звёздами через Telegram.
         </p>
+        </StoreHide>
 
         <h2>6. Честное использование</h2>
         <p>
