@@ -558,6 +558,7 @@ body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
 .big-karaoke .w { display: inline-block; border-radius: 12px; padding: 0 4px; transition: color .15s; }
 .big-karaoke .w.loud { font-size: clamp(30px, 8vw, 46px); font-weight: 700; }
 .big-karaoke .w.soft { font-size: clamp(20px, 5.4vw, 28px); color: var(--muted); }
+.big-karaoke .w.plain { font-size: clamp(26px, 7vw, 40px); font-weight: 600; }
 .big-karaoke .w.done { color: var(--lav-ink); }
 .big-karaoke .w.now { background: var(--hl); color: var(--hl-ink); }
 .big-karaoke .w.dim { opacity: .3; }
@@ -730,3 +731,63 @@ a.pill-link, a.logo, a.wide-btn { text-decoration: none; }
 .report-list { display: grid; gap: 10px; }
 .report-item { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; display: grid; gap: 4px; font-size: 14px; }
 .report-item b { color: var(--rose-ink); }
+
+/* Voice first: the phrase is on screen and playing while its breakdown is written */
+.bd-wait { display: flex; align-items: center; gap: 10px; margin: 6px 0 0; color: var(--muted); font-size: 14px; opacity: 0; animation: bd-wait-in .3s .7s forwards; }
+@keyframes bd-wait-in { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .bd-wait { animation: none; opacity: 1; } }
+
+/* ---------- First screen v6: ready phrases first, nothing to invent ---------- */
+.home { gap: 18px; padding-top: 28px; }
+@media (min-width: 760px) { .home { padding-top: 56px; } }
+.hero { width: 100%; max-width: 640px; display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; }
+.home .hero h1 { font-size: clamp(28px, 7vw, 44px); }
+.how { list-style: none; margin: 0; padding: 0; width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.how li { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 6px; border-radius: 16px; background: var(--soft); color: var(--ink); font-size: 13px; font-weight: 600; line-height: 1.25; }
+.how li span { font-size: 22px; line-height: 1; }
+.start-big { width: 100%; display: flex; align-items: center; gap: 14px; padding: 14px 20px 14px 14px; border: 0; border-radius: 22px; background: var(--ink); color: var(--on-ink); text-align: left; box-shadow: var(--shadow); cursor: pointer; transition: background .15s, transform .1s; }
+.start-big:hover { background: var(--lav-ink); }
+.start-big:active { transform: scale(.98); }
+.start-ic { width: 52px; height: 52px; border-radius: 50%; background: var(--orb); color: #1f1c2e; display: grid; place-items: center; flex: none; }
+.start-txt { display: flex; flex-direction: column; gap: 2px; }
+.start-txt b { font-size: 19px; font-weight: 700; }
+.start-txt small { font-size: 13px; opacity: .75; }
+.hero-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.chip-link { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 14px; font-weight: 600; }
+.chip-link:hover { border-color: var(--lav-ink); }
+.home-sec { width: 100%; max-width: 760px; display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
+.home-sec h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.sec-sub { margin: -4px 0 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+.ptiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 760px) { .ptiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.ptile { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--ink); text-align: left; cursor: pointer; }
+.ptile:hover { border-color: var(--lav-ink); }
+.ptile-t { display: flex; flex-direction: column; min-width: 0; }
+.ptile-t b { font-size: 14px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+.ptile-t small { font-size: 12px; color: var(--muted); }
+
+/* Topic cards (Наборы): clean, readable, one phrase and how it really sounds */
+.pack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.pcard { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); color: var(--ink); text-align: left; cursor: pointer; transition: border-color .15s; }
+.pcard:hover { border-color: var(--lav-ink); }
+.pcard-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.pcard-ic { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; font-size: 22px; flex: none; }
+.pcard-ic.sm { width: 38px; height: 38px; border-radius: 12px; font-size: 19px; }
+.pcard-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pcard-title b { font-size: 16px; font-weight: 700; }
+.pcard-title small { font-size: 13px; color: var(--muted); }
+.pcard-ex { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 14px; background: var(--soft); }
+.pcard-say { font-size: 15px; font-weight: 500; }
+.pcard-fast { font-size: 13px; color: var(--lav-ink); font-family: var(--font-mono); }
+
+/* Own text: a box that takes a whole pasted text */
+.prompt { border-radius: 26px; align-items: flex-end; }
+.prompt textarea { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: var(--ink); font: inherit; font-size: 17px; line-height: 1.4; padding: 12px 8px; resize: none; max-height: 168px; overflow-y: auto; }
+.prompt textarea::placeholder { color: var(--faint); }
+@media (max-width: 759px) { .prompt textarea { font-size: 16px; } }
+.examples { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.ex-chip { height: 34px; padding: 0 12px; border: 1px dashed var(--lav-ink); border-radius: 999px; background: transparent; color: var(--lav-ink); font-size: 14px; font-weight: 500; }
+.ex-chip:hover { background: var(--lav); border-style: solid; }
+.pro-pill { color: var(--lav-ink); }
+.home .tip-line { margin-top: 6px; }
+.home .free-chip { margin: 0; border-radius: 14px; text-align: center; }

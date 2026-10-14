@@ -25,7 +25,7 @@ export type State = {
   today: { date: string; reps: number; records: number; scores: number };
   badges: string[];
   library: LibItem[];
-  settings: { gap: number; hide: boolean; voice: string; theme: "system" | "light" | "dark"; cyrillic: boolean; tips: boolean };
+  settings: { gap: number; hide: boolean; voice: string; theme: "system" | "light" | "dark"; cyrillic: boolean; tips: boolean; autoplay: boolean };
 };
 export type EventName = keyof Counts | "score";
 
@@ -48,7 +48,7 @@ const EMPTY: State = {
   today: { date: "", reps: 0, records: 0, scores: 0 },
   badges: [],
   library: [],
-  settings: { gap: 1.2, hide: false, voice: "", theme: "system", cyrillic: false, tips: true },
+  settings: { gap: 1.2, hide: false, voice: "", theme: "system", cyrillic: false, tips: true, autoplay: true },
 };
 
 // ---------- Badges ----------

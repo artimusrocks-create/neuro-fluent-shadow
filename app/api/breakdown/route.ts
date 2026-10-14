@@ -25,6 +25,8 @@ export async function POST(req: Request) {
   // Free visitors: 5 different phrases a day.
   const gated = await freePhraseGate(who, text);
   if (gated) return gated;
+  // The app plays the voice while the breakdown is still being written: allow it now, not after.
+  await rememberUnlocked(who, [text]).catch(() => {});
 
   // Same phrase → same answer, free.
   const key = `bd:${body.cyrillic ? 1 : 0}:${hash(text.toLowerCase())}`;

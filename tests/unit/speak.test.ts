@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { POST as speakPOST } from "@/app/api/speak/route";
+import { POST as breakdownPOST } from "@/app/api/breakdown/route";
+import { FREE_PHRASES } from "@/lib/auth";
 import { DEFAULT_VOICE, VOICES } from "@/lib/voices";
 import { mock, req } from "./helpers";
 
@@ -51,5 +53,34 @@ describe("voice engine", () => {
   it("every voice on offer is distinct and named", () => {
     expect(new Set(VOICES.map((v) => v.id)).size).toBe(VOICES.length);
     for (const v of VOICES) expect(v.name.trim() && v.note.trim()).toBeTruthy();
+  });
+});
+
+describe("voice first: a free visitor hears a new phrase before its breakdown is ready", () => {
+  beforeEach(async () => {
+    await mock().reset();
+  });
+  const visitor = { "x-device": "feedfacefeedface0001", "x-forwarded-for": "10.9.9.9" };
+  const speak = (text: string) => speakPOST(req("/api/speak", { json: { text }, headers: visitor }));
+  const breakdown = (text: string) => breakdownPOST(req("/api/breakdown", { json: { text }, headers: visitor }));
+
+  it("the voice opens the phrase; its breakdown then doesn't use a second free phrase", async () => {
+    const phrase = "My cat keeps knocking stuff off the table.";
+    expect((await speak(phrase)).status).toBe(200);
+    expect((await breakdown(phrase)).status).toBe(200);
+    // Four more new phrases still fit into today's five.
+    for (let i = 1; i < FREE_PHRASES; i++) expect((await breakdown(`Brand new phrase number ${i} for today.`)).status).toBe(200);
+    expect((await breakdown("One phrase too many today.")).status).toBe(429);
+  });
+
+  it("voice and breakdown asked at the same moment count as one phrase", async () => {
+    const phrase = "Honestly, I could use a long weekend right now.";
+    const [a, b] = await Promise.all([speak(phrase), breakdown(phrase)]);
+    expect([a.status, b.status]).toEqual([200, 200]);
+    for (let i = 1; i < FREE_PHRASES; i++) expect((await speak(`Another fresh phrase ${i} to hear.`)).status).toBe(200);
+    // The sixth new text is refused, by the voice as well: it's not a free text-to-speech service.
+    const sixth = await speak("Read this whole essay aloud for free please.");
+    expect(sixth.status).toBe(429);
+    expect((await sixth.json()).error).toBe("limit");
   });
 });

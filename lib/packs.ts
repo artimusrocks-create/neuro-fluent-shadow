@@ -4,6 +4,7 @@ export type Pack = {
   id: string;
   title: string;
   blurb: string;
+  emoji: string; // the card's icon
   sample: string; // shown in the card's chat bubble
   fast: string; // its fast version, shown under the bubble
   colors: [string, string, string]; // card gradient: glow 1, glow 2, base
@@ -13,6 +14,7 @@ export type Pack = {
 export const PACKS: Pack[] = [
   {
     id: "cafe",
+    emoji: "☕",
     title: "В кафе и ресторане",
     blurb: "Заказать, попросить счёт, уточнить",
     sample: "Can I get a coffee to go?",
@@ -31,6 +33,7 @@ export const PACKS: Pack[] = [
   },
   {
     id: "travel",
+    emoji: "✈️",
     title: "Аэропорт и путешествия",
     blurb: "Регистрация, такси, отель",
     sample: "Where do I check in?",
@@ -49,6 +52,7 @@ export const PACKS: Pack[] = [
   },
   {
     id: "smalltalk",
+    emoji: "💬",
     title: "Small talk",
     blurb: "Те самые пять минут ни о чём",
     sample: "Hey, how's it going?",
@@ -67,6 +71,7 @@ export const PACKS: Pack[] = [
   },
   {
     id: "dating",
+    emoji: "🍷",
     title: "Знакомства и свидания",
     blurb: "Познакомиться, пригласить, поболтать",
     sample: "Do you wanna grab a drink?",
@@ -85,6 +90,7 @@ export const PACKS: Pack[] = [
   },
   {
     id: "calls",
+    emoji: "💻",
     title: "Работа и созвоны",
     blurb: "Для звонков и встреч на английском",
     sample: "Sorry, you're on mute.",
@@ -103,6 +109,7 @@ export const PACKS: Pack[] = [
   },
   {
     id: "shops",
+    emoji: "🛍️",
     title: "Магазины и сервис",
     blurb: "Купить, вернуть, спросить",
     sample: "I'm just looking, thanks.",
@@ -121,6 +128,7 @@ export const PACKS: Pack[] = [
   },
   {
     id: "shows",
+    emoji: "🎬",
     title: "Как в сериалах",
     blurb: "Живые реакции, которые слышишь в кино",
     sample: "You gotta be kidding me.",
@@ -139,6 +147,7 @@ export const PACKS: Pack[] = [
   },
   {
     id: "slang",
+    emoji: "🤙",
     title: "Сленг и словечки",
     blurb: "Like, you know, I mean",
     sample: "I mean, it's whatever.",
@@ -170,6 +179,12 @@ const dayNumber = (date: Date) => {
 /** Same phrase for everyone on a given day. */
 export function phraseOfTheDay(date = new Date()) {
   return ALL_PHRASES[dayNumber(date) % ALL_PHRASES.length];
+}
+
+/** «Начать тренировку»: today's phrase first, then the rest of its pack. Ready-made, nothing to invent. */
+export function todaysSession(date = new Date()) {
+  const potd = phraseOfTheDay(date);
+  return { pack: potd.pack, texts: [potd.text, ...potd.pack.phrases.filter((t) => t !== potd.text)] };
 }
 
 /** One-sentence pack phrases: each has exactly one pre-made clip, so a channel post can carry its audio. */

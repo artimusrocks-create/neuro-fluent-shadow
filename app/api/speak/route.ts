@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { jsonError } from "@/lib/server";
-import { CONTACT_URL, getWho, isResponse, mayVoice, useChars, useLimit } from "@/lib/auth";
+import { freePhraseGate, getWho, isResponse, mayVoice, rememberUnlocked, useChars, useLimit } from "@/lib/auth";
 import { blobPut, blobReadText, hasBlob, hash, redis, Stored } from "@/lib/store";
 import { TTS_TAG, pickVoice, ttsBody } from "@/lib/voices";
 
@@ -72,9 +72,13 @@ export async function POST(req: Request) {
     }
   }
 
-  // Free visitors can voice only the phrases they unlocked today (and pieces of them), not any text.
+  // Free visitors can voice only the phrases they opened today (and pieces of them), not any text.
+  // The app asks for the voice the moment a new phrase opens, often before its breakdown has started:
+  // that opens the phrase here (one of today's free phrases, the same one the breakdown will use).
   if (!(await mayVoice(who, text))) {
-    return NextResponse.json({ error: "limit", message: "Бесплатно озвучиваются только фразы, которые ты сегодня разобрал.", contact: CONTACT_URL, upgrade: true }, { status: 429 });
+    const gated = await freePhraseGate(who, text);
+    if (gated) return gated;
+    await rememberUnlocked(who, [text]);
   }
   const limited = (await useLimit(who, "speak")) ?? (await useChars(who, text.length));
   if (limited) return limited;

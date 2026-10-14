@@ -78,6 +78,7 @@ function haptic(kind: "light" | "medium" | "success" = "light") {
 }
 
 type Props = {
+  text: string; // the phrase as it stands in the queue: shown and voiced before its breakdown arrives
   item: Sentence | null;
   loading: boolean;
   loadError: string;
@@ -94,13 +95,15 @@ type Props = {
 };
 
 export default function Practice(props: Props) {
-  const { item: s, loading, loadError, label, index, total, fromLibrary, canSend, onPrev, onNext, onClose, onRetry, onPasscodeNeeded } = props;
+  const { text, item: s, loading, loadError, label, index, total, fromLibrary, canSend, onPrev, onNext, onClose, onRetry, onPasscodeNeeded } = props;
   const progress = useProgress();
-  const { gap, hide, cyrillic, tips } = progress.settings;
+  const { gap, hide, cyrillic, tips, autoplay } = progress.settings;
   const voice = pickVoice(progress.settings.voice);
   const saved = !!s && progress.library.some((x) => x.id === libId(s.text));
+  // Voice first: the phrase can be heard and repeated right away; stresses and linking fill in when the breakdown arrives.
+  const phrase = s?.text ?? text.trim();
 
-  const words = useMemo(() => (s ? splitWords(s.text) : []), [s]);
+  const words = useMemo(() => splitWords(phrase), [phrase]);
   const stressed = useMemo(() => (s ? stressFlags(s.text, s.clear) : []), [s]);
   const chunks = useMemo(() => (s ? (s.chunks?.length ? s.chunks : [s.text]) : []), [s]);
 
@@ -137,8 +140,8 @@ export default function Practice(props: Props) {
   // Start making the audio as soon as the phrase is on screen, so «Слушать» usually plays with no wait.
   // A failure here is ignored: pressing a button asks again and shows the error then.
   useEffect(() => {
-    if (s?.text) fetchClip(s.text, speed.tts, voice).catch(() => {});
-  }, [s?.text, speed.tts, voice]);
+    if (phrase) fetchClip(phrase, speed.tts, voice).catch(() => {});
+  }, [phrase, speed.tts, voice]);
   const veiled = hide && !revealed;
 
   function handleError(e: unknown) {
@@ -187,7 +190,8 @@ export default function Practice(props: Props) {
     setStatus("");
   }
 
-  async function run(mode: string, fn: (token: number) => Promise<void>) {
+  // quiet: a failed automatic play (the browser blocked it, or the free limit) shows nothing; the ▶ button still works.
+  async function run(mode: string, fn: (token: number) => Promise<void>, quiet = false) {
     if (busy === mode) {
       stopAll();
       reset();
@@ -199,27 +203,39 @@ export default function Practice(props: Props) {
     try {
       await fn(token);
     } catch (e) {
-      handleError(e);
+      if (!quiet) handleError(e);
     } finally {
       if (alive(token)) reset();
     }
   }
 
   const play = () =>
-    s &&
+    phrase &&
     run("play", async (t) => {
       haptic();
       track("plays");
-      await speak(t, s.text, 0);
+      await speak(t, phrase, 0);
     });
 
+  // The phrase plays by itself once when it opens (setting «Звук сразу»).
+  const autoKey = useRef("");
+  useEffect(() => {
+    if (!autoplay || !phrase || loadError) return;
+    const k = `${index}|${text}`;
+    if (autoKey.current === k) return;
+    autoKey.current = k;
+    const timer = setTimeout(() => run("play", async (t) => void (await speak(t, phrase, 0)), true), 250);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoplay, phrase, loadError, index, text]);
+
   const echo = () =>
-    s &&
+    phrase &&
     run("echo", async (t) => {
       haptic();
       track("echoes");
       for (let r = 1; r <= ECHO_REPEATS; r++) {
-        const dur = await speak(t, s.text, 0);
+        const dur = await speak(t, phrase, 0);
         await yourTurn(t, dur, `Твоя очередь · ${r}/${ECHO_REPEATS}`);
       }
     });
@@ -441,22 +457,45 @@ export default function Practice(props: Props) {
         }}
       >
         {loading || !s ? (
-          loadError ? (
-            <div style={{ display: "grid", gap: 12, justifyItems: "start" }}>
-              <p className="error-line" style={{ textAlign: "left" }}>
-                {loadError}
+          <>
+            {phrase ? (
+              <p className={`big-karaoke ${veiled ? "veiled" : ""}`} aria-hidden={veiled}>
+                {words.map((w, i) => {
+                  const st = !range ? "" : i < range[0] || i > range[1] ? "dim" : i === active ? "now" : i < active ? "done" : "";
+                  return (
+                    <span key={i} className={`w plain ${st}`}>
+                      {w}
+                    </span>
+                  );
+                })}
               </p>
-              <button type="button" className="wide-btn light" onClick={onRetry}>
-                Попробовать ещё раз
-              </button>
-            </div>
-          ) : (
-            <div className="skeleton" aria-label="Готовлю фразу">
-              <i />
-              <i />
-              <i />
-            </div>
-          )
+            ) : null}
+            {loadError ? (
+              <div style={{ display: "grid", gap: 12, justifyItems: "start" }}>
+                <p className="error-line" style={{ textAlign: "left" }}>
+                  {loadError}
+                </p>
+                <button type="button" className="wide-btn light" onClick={onRetry}>
+                  Попробовать ещё раз
+                </button>
+              </div>
+            ) : phrase ? (
+              <p className="bd-wait" role="status">
+                <span className="dots">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                Разбираю ударения и склейки. Пока слушай и повторяй.
+              </p>
+            ) : (
+              <div className="skeleton" aria-label="Готовлю фразу">
+                <i />
+                <i />
+                <i />
+              </div>
+            )}
+          </>
         ) : (
           <>
             <p className={`big-karaoke ${veiled ? "veiled" : ""}`} aria-hidden={veiled}>
@@ -528,14 +567,14 @@ export default function Practice(props: Props) {
             className={`play-btn ${busy === "play" ? "on" : ""}`}
             aria-label={busy === "play" ? "Стоп" : "Слушать"}
             onClick={play}
-            disabled={!s}
+            disabled={!phrase}
             whileTap={{ scale: 0.92 }}
           >
             {busy === "play" ? <Square size={20} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
           </motion.button>
         </div>
         <div className="chip-row">
-          <button type="button" className={`chip-btn ${busy === "echo" ? "on" : ""}`} onClick={echo} disabled={!s}>
+          <button type="button" className={`chip-btn ${busy === "echo" ? "on" : ""}`} onClick={echo} disabled={!phrase}>
             <Repeat size={16} /> {busy === "echo" ? "Стоп" : "Эхо ×3"}
           </button>
           {busy === "build" && (

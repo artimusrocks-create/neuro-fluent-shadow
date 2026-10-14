@@ -39,10 +39,50 @@ test.beforeEach(async ({ request }) => {
 test("home works on a phone and shows the free plan", async ({ page }) => {
   const errors = await prepare(page);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Что будем повторять сегодня?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Повторяй за носителем 5 минут в день" })).toBeVisible();
   await expect(page.getByText(/Бесплатно сегодня: осталось/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Pro", exact: true })).toBeVisible();
   await noSideScroll(page);
+  expect(errors).toEqual([]);
+});
+
+test("first screen: one big button starts ready phrases, nothing to type", async ({ page }) => {
+  const errors = await prepare(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: /Начать тренировку/ }).click();
+  const practice = page.getByRole("dialog", { name: "Тренировка" });
+  await expect(practice.getByText(/ · 1 из 8$/)).toBeVisible();
+  await expect(practice.getByRole("button", { name: "Слушать" })).toBeEnabled();
+  expect(errors).toEqual([]);
+});
+
+test("first screen: topics are right there, and an example opens with one tap", async ({ page }) => {
+  const errors = await prepare(page);
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: /Small talk/ })).toBeVisible();
+  await page.getByRole("button", { name: "Sorry, you're on mute." }).click();
+  const practice = page.getByRole("dialog", { name: "Тренировка" });
+  await expect(practice.getByText("Пример · 1 из 1")).toBeVisible();
+  await expect(practice.getByRole("button", { name: "Слушать" })).toBeEnabled();
+  await noSideScroll(page);
+  expect(errors).toEqual([]);
+});
+
+test("a pasted text opens at once, one sentence per step, and the voice is ready before the breakdown", async ({ page, request }) => {
+  const errors = await prepare(page);
+  await page.goto("/");
+  await page.getByLabel("Фраза на английском").fill("Hey team, quick update.\nThe release is moving to Friday. I'll send the details by email.");
+  await page.getByRole("button", { name: "Разобрать" }).click();
+  const practice = page.getByRole("dialog", { name: "Тренировка" });
+  await expect(practice.getByText("Твой текст · 1 из 3")).toBeVisible();
+  await expect(practice.getByText("Hey", { exact: true })).toBeVisible();
+  await expect(practice.getByRole("button", { name: "Слушать" })).toBeEnabled();
+  // The first sentence is voiced on its own (no tap): a free visitor may hear it before its breakdown.
+  const tts = async () =>
+    ((await (await request.get(`${MOCK}/__calls?service=elevenlabs`)).json()) as { kind: string; text?: string }[]).filter((c) => c.kind === "tts").length;
+  await expect.poll(tts).toBeGreaterThan(0);
+  await practice.getByRole("button", { name: "Следующая фраза", exact: true }).click();
+  await expect(practice.getByText("Твой текст · 2 из 3")).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -189,7 +229,7 @@ test("Telegram Stars from the website: invoice opens, payment arrives, Pro is on
 test("inside the Android app: no prices, no payment buttons", async ({ page }) => {
   await prepare(page);
   await page.goto("/?app=android");
-  await expect(page.getByRole("heading", { name: "Что будем повторять сегодня?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Повторяй за носителем 5 минут в день" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Pro", exact: true })).toBeHidden();
   await useFreePhrases(page, 5);
   await page.getByLabel("Фраза на английском").fill("One phrase too many");

@@ -202,6 +202,24 @@ function el(): HTMLAudioElement {
   return audioEl;
 }
 
+// A few silent samples played inside a tap: after that, iPhones let the app start the voice by itself.
+const SILENT_WAV = "data:audio/wav;base64,UklGRjQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YRAAAAAAAAAAAAAAAAAAAAAAAAAA";
+let audioUnlocked = false;
+/** Call from a tap handler (before any await) so the first phrase can play on its own. */
+export function unlockAudio() {
+  if (audioUnlocked || typeof window === "undefined") return;
+  audioUnlocked = true;
+  try {
+    const a = el();
+    a.src = SILENT_WAV;
+    a.play().catch(() => {
+      audioUnlocked = false;
+    });
+  } catch {
+    audioUnlocked = false;
+  }
+}
+
 /** Start a new run; stops whatever was playing. Returns a token to check with alive(). */
 export function newRun(): number {
   stopAll();

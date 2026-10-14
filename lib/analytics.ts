@@ -11,6 +11,9 @@ export const CLIENT_EVENTS = [
   "landing", // opened the landing page
   "seo", // opened a public phrase page
   "phrase", // asked for a new phrase breakdown
+  "text", // pasted a text of several sentences
+  "start_today", // pressed «Начать тренировку» on the first screen
+  "example", // tapped an example phrase under the text box
   "pack", // started a phrase pack
   "record", // recorded themselves
   "limit", // hit the free limit

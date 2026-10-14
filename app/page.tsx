@@ -5,13 +5,12 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowUp,
   Bookmark,
-  CalendarDays,
   ChartColumn,
   Ellipsis,
   House,
   LayoutGrid,
   Mic,
-  Plus,
+  Play,
   RotateCcw,
   KeyRound,
   Search,
@@ -43,8 +42,10 @@ import {
   telegramApp,
   trackEvent,
   trackOnce,
+  unlockAudio,
 } from "@/lib/client";
-import { PACKS, Pack, packGradient, phraseOfTheDay } from "@/lib/packs";
+import { PACKS, Pack, phraseOfTheDay, todaysSession } from "@/lib/packs";
+import { MAX_ITEMS, splitSentences } from "@/lib/sentences";
 import { BADGES, getState, isDue, mergeRemote, missionProgress, onBadges, onChange, setSettings, streak, track, useProgress } from "@/lib/progress";
 import { VOICES, pickVoice } from "@/lib/voices";
 
@@ -61,6 +62,51 @@ const TIPS = [
   "пять лет Duolingo, а на созвоне всё равно «sorry, can you repeat». Исправляем.",
 ];
 
+// Tap-to-try examples under the text box. Pack phrases: their breakdown and audio are ready, so they open instantly.
+const EXAMPLES = ["Can I get a coffee to go?", "Sorry, you're on mute.", "You gotta be kidding me."];
+const MAX_PASTE = 12000;
+
+/** A topic card: icon, name, and one phrase with how it really sounds. */
+function PackCard({ p, onClick }: { p: Pack; onClick: () => void }) {
+  return (
+    <motion.button type="button" className="pcard" onClick={onClick} whileTap={{ scale: 0.98 }}>
+      <span className="pcard-top">
+        <span className="pcard-ic" style={{ background: p.colors[0] }} aria-hidden>
+          {p.emoji}
+        </span>
+        <span className="pcard-title">
+          <b>{p.title}</b>
+          <small>
+            {p.phrases.length} фраз · {p.blurb}
+          </small>
+        </span>
+      </span>
+      <span className="pcard-ex">
+        <span className="pcard-say">{p.sample}</span>
+        <span className="pcard-fast">
+          <span aria-hidden>🗣 </span>
+          {p.fast}
+        </span>
+      </span>
+    </motion.button>
+  );
+}
+
+/** Compact topic tile for the first screen: all eight topics fit on a phone without scrolling forever. */
+function PackTile({ p, onClick }: { p: Pack; onClick: () => void }) {
+  return (
+    <button type="button" className="ptile" onClick={onClick}>
+      <span className="pcard-ic sm" style={{ background: p.colors[0] }} aria-hidden>
+        {p.emoji}
+      </span>
+      <span className="ptile-t">
+        <b>{p.title}</b>
+        <small>{p.phrases.length} фраз</small>
+      </span>
+    </button>
+  );
+}
+
 type View = "home" | "packs" | "library" | "progress" | "assigned";
 type Item = { text: string; s?: Sentence; err?: string };
 type Queue = { items: Item[]; index: number; label: string; fromLibrary?: boolean } | null;
@@ -71,7 +117,6 @@ export default function Page() {
   const [mounted, setMounted] = useState(false);
   const [view, setView] = useState<View>("home");
   const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [tip, setTip] = useState(0);
   const [menu, setMenu] = useState(false);
@@ -88,6 +133,7 @@ export default function Page() {
   meRef.current = me;
   const recRef = useRef<MediaRecorder | null>(null);
   const loadingRef = useRef<Set<string>>(new Set());
+  const boxRef = useRef<HTMLTextAreaElement | null>(null);
 
   // ---------- Who am I, progress sync ----------
   const refreshFree = () => {
@@ -232,34 +278,44 @@ export default function Page() {
 
   function startQueue(items: Item[], label: string, fromLibrary = false, index = 0) {
     if (!items.length) return;
+    unlockAudio(); // inside the tap: lets the first phrase play by itself, even on iPhone
     setMenu(false);
     setQueue({ items, index, label, fromLibrary });
   }
   const startTexts = (texts: string[], label: string, index = 0) => startQueue(texts.map((t) => ({ text: t })), label, false, index);
   const startPack = (p: Pack) => (trackEvent("pack"), startTexts(p.phrases, p.title));
+  function startToday() {
+    const t = todaysSession();
+    trackEvent("start_today");
+    startTexts(t.texts, t.pack.title);
+  }
+  function tryExample(x: string) {
+    setText(x);
+    trackEvent("example");
+    startTexts([x], "Пример");
+  }
 
-  async function submit(e?: FormEvent) {
+  // Opens at once: one sentence per step, the voice plays right away and each breakdown fills in while you listen.
+  function submit(e?: FormEvent) {
     e?.preventDefault();
-    const t = text.trim();
-    if (!t) return;
-    setBusy(true);
+    const items = splitSentences(text);
+    if (!items.length) return;
     setError("");
-    trackEvent("phrase");
-    try {
-      const d = await fetchBreakdown(t, settings.cyrillic);
-      track("breakdowns");
-      refreshFree();
-      startQueue(
-        d.sentences.map((s) => ({ text: s.text, s })),
-        "Твой текст"
-      );
-    } catch (err) {
-      if (err instanceof ApiError && err.kind === "limit") openPro("limit");
-      setError(err instanceof Error ? err.message : "Не получилось. Попробуй ещё раз.");
-    } finally {
-      setBusy(false);
+    trackEvent(items.length > 1 ? "text" : "phrase");
+    startTexts(items.slice(0, MAX_ITEMS), items.length > 1 ? "Твой текст" : "Твоя фраза");
+    if (items.length > MAX_ITEMS) {
+      setNotice(`Взял первые ${MAX_ITEMS} предложений. Остальное вставь потом отдельно.`);
+      setTimeout(() => setNotice(""), 9000);
     }
   }
+
+  // The text box grows with what's pasted into it (up to a few lines, then it scrolls).
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 168)}px`;
+  }, [text, view]);
 
   // Dictation: say the phrase instead of typing it.
   async function dictate() {
@@ -298,7 +354,6 @@ export default function Page() {
     window.scrollTo({ top: 0 });
   };
 
-  const potd = phraseOfTheDay();
   const due = progress.library.filter(isDue);
   const mission = missionProgress(progress);
   const st = streak(progress);
@@ -325,6 +380,12 @@ export default function Page() {
           <button type="button" className="pill-link desk-only" onClick={() => go("progress")}>
             Прогресс
           </button>
+          {me?.plan === "free" && !store && (
+            <button type="button" className="pill-link pro-pill" onClick={() => openPro("menu")}>
+              <Sparkles size={16} />
+              Pro
+            </button>
+          )}
           <button type="button" className="icon-btn" aria-label="Меню и настройки" onClick={() => setMenu(true)}>
             <Ellipsis size={20} />
             {mounted && feedback > 0 && <span className="dot-badge" />}
@@ -343,30 +404,44 @@ export default function Page() {
         >
           {view === "home" && (
             <>
-              <h1>Что будем повторять сегодня?</h1>
-              <form className="prompt" onSubmit={submit}>
-                <span className="orb lg" aria-hidden />
-                <button type="button" className="ghost" aria-label="Наборы фраз" onClick={() => go("packs")}>
-                  <Plus size={22} />
-                </button>
-                <input aria-label="Фраза на английском" placeholder={dictating ? "Говори…" : "Фраза на английском…"} value={text} onChange={(e) => setText(e.target.value)} />
-                <button type="button" className={`ghost ${dictating ? "rec" : ""}`} aria-label={dictating ? "Остановить" : "Сказать голосом"} onClick={dictate}>
-                  {dictating ? <Square size={18} fill="currentColor" /> : <Mic size={20} />}
-                </button>
-                <button type="submit" className="send" aria-label="Разобрать" disabled={!text.trim() || busy}>
-                  <ArrowUp size={22} />
-                </button>
-              </form>
-              {busy && (
-                <p className="loading-line">
-                  <span className="dots">
-                    <i />
-                    <i />
-                    <i />
+              <section className="hero">
+                <h1>Повторяй за носителем 5 минут в день</h1>
+                <ol className="how" aria-label="Как это работает">
+                  <li>
+                    <span aria-hidden>🎧</span>Слушаешь фразу
+                  </li>
+                  <li>
+                    <span aria-hidden>🗣</span>Повторяешь вслух
+                  </li>
+                  <li>
+                    <span aria-hidden>💯</span>Получаешь оценку
+                  </li>
+                </ol>
+                <button type="button" className="start-big" onClick={startToday}>
+                  <span className="start-ic" aria-hidden>
+                    <Play size={22} fill="currentColor" />
                   </span>
-                  Разбираю фразу…
-                </p>
-              )}
+                  <span className="start-txt">
+                    <b>Начать тренировку</b>
+                    <small>8 готовых фраз · около 5 минут</small>
+                  </span>
+                </button>
+                {(mounted && due.length > 0) || me?.plan === "class" ? (
+                  <div className="hero-links">
+                    {mounted && due.length > 0 && (
+                      <button type="button" className="chip-link" onClick={() => startQueue(due.map((x) => ({ text: x.s.text, s: x.s })), "Повторение", true)}>
+                        <RotateCcw size={15} /> Повторить сохранённые · {due.length}
+                      </button>
+                    )}
+                    {me?.plan === "class" && (
+                      <button type="button" className="chip-link" onClick={() => (go("assigned"), loadMe())}>
+                        <Send size={15} /> От препода{feedback > 0 ? ` · ${feedback}` : ""}
+                      </button>
+                    )}
+                  </div>
+                ) : null}
+              </section>
+
               {error && <p className="error-line">{error}</p>}
               {notice && <p className="pro-chip">{notice}</p>}
               {me?.plan === "pro" && me.pro?.until && (
@@ -381,7 +456,7 @@ export default function Page() {
               )}
               {me?.free && !me.lapsed && (
                 <p className="free-chip">
-                  Бесплатно сегодня: осталось <b>{Math.max(0, me.free.limit - me.free.used)}</b> из {me.free.limit} фраз
+                  Бесплатно сегодня: осталось <b>{Math.max(0, me.free.limit - me.free.used)}</b> из {me.free.limit}
                   {!store && (
                     <>
                       {" · "}
@@ -392,73 +467,52 @@ export default function Page() {
                   )}
                 </p>
               )}
+
+              <section className="home-sec">
+                <h2>Или выбери тему</h2>
+                <div className="ptiles">
+                  {PACKS.map((p) => (
+                    <PackTile key={p.id} p={p} onClick={() => startPack(p)} />
+                  ))}
+                </div>
+              </section>
+
+              <section className="home-sec">
+                <h2>Есть свой текст?</h2>
+                <p className="sec-sub">Вставь фразу или целый текст: письмо, статью, субтитры. Озвучу сразу и разберу по предложениям.</p>
+                <form className="prompt" onSubmit={submit}>
+                  <textarea
+                    ref={boxRef}
+                    rows={1}
+                    aria-label="Фраза на английском"
+                    placeholder={dictating ? "Говори…" : "Вставь фразу или текст на английском…"}
+                    value={text}
+                    maxLength={MAX_PASTE}
+                    enterKeyHint="send"
+                    onChange={(e) => setText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) submit(e);
+                    }}
+                  />
+                  <button type="button" className={`ghost ${dictating ? "rec" : ""}`} aria-label={dictating ? "Остановить" : "Сказать голосом"} onClick={dictate}>
+                    {dictating ? <Square size={18} fill="currentColor" /> : <Mic size={20} />}
+                  </button>
+                  <button type="submit" className="send" aria-label="Разобрать" disabled={!text.trim()}>
+                    <ArrowUp size={22} />
+                  </button>
+                </form>
+                <div className="examples">
+                  <span>Например:</span>
+                  {EXAMPLES.map((x) => (
+                    <button key={x} type="button" className="ex-chip" onClick={() => tryExample(x)}>
+                      {x}
+                    </button>
+                  ))}
+                </div>
+              </section>
+
               <button type="button" className="tip-line" onClick={() => setTip((tip + 1) % TIPS.length)}>
                 <b>Совет дня:</b> {TIPS[tip]}
-              </button>
-
-              <nav className="tiles" aria-label="Разделы">
-                <button type="button" className="tile" onClick={() => startTexts([potd.text], "Фраза дня")}>
-                  <span className="tile-ic">
-                    <CalendarDays size={22} />
-                  </span>
-                  Фраза дня
-                </button>
-                <button type="button" className="tile" onClick={() => go("packs")}>
-                  <span className="tile-ic">
-                    <LayoutGrid size={22} />
-                  </span>
-                  Наборы
-                </button>
-                <button type="button" className="tile" onClick={() => go("library")}>
-                  <span className="tile-ic">
-                    <Bookmark size={22} />
-                  </span>
-                  Мои фразы
-                </button>
-                <button type="button" className="tile" onClick={() => (due.length ? startQueue(due.map((x) => ({ text: x.s.text, s: x.s })), "Повторение", true) : go("library"))}>
-                  <span className="tile-ic">
-                    <RotateCcw size={22} />
-                  </span>
-                  Повторить
-                  {mounted && due.length > 0 && <span className="count">{due.length}</span>}
-                </button>
-                <button type="button" className="tile" onClick={() => go("progress")}>
-                  <span className="tile-ic">
-                    <ChartColumn size={22} />
-                  </span>
-                  Прогресс
-                </button>
-                {me?.plan === "class" && (
-                  <button type="button" className="tile" onClick={() => (go("assigned"), loadMe())}>
-                    <span className="tile-ic">
-                      <Send size={22} />
-                    </span>
-                    От препода
-                    {feedback > 0 && <span className="count">{feedback}</span>}
-                  </button>
-                )}
-                {/* Free visitors get "Pro" in the last slot; "Ещё" stays in the top-right ⋯ button. */}
-                {me?.plan === "free" && !store ? (
-                  <button type="button" className="tile" onClick={() => openPro("menu")}>
-                    <span className="tile-ic pro">
-                      <Sparkles size={22} />
-                    </span>
-                    Pro
-                  </button>
-                ) : (
-                  <button type="button" className="tile" onClick={() => setMenu(true)}>
-                    <span className="tile-ic">
-                      <Ellipsis size={22} />
-                    </span>
-                    Ещё
-                  </button>
-                )}
-              </nav>
-
-              <button type="button" className="banner" style={{ background: packGradient(PACKS[0]) }} onClick={() => startPack(PACKS[0])}>
-                <h3>Набор: «{PACKS[0].title}»</h3>
-                <p>{PACKS[0].blurb}. Восемь фраз, около пяти минут.</p>
-                <span className="cta">Начать</span>
               </button>
             </>
           )}
@@ -474,24 +528,7 @@ export default function Page() {
               </label>
               <div className="pack-grid">
                 {filteredPacks.map((p) => (
-                  <motion.button
-                    key={p.id}
-                    type="button"
-                    className="pack-card"
-                    style={{ background: packGradient(p) }}
-                    onClick={() => startPack(p)}
-                    whileHover={{ y: -3 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <span className="bubble">{p.sample}</span>
-                    <span className="bubble fast">{p.fast}</span>
-                    <span className="label">
-                      <b>{p.title}</b>
-                      <span>
-                        {p.phrases.length} фраз · {p.blurb}
-                      </span>
-                    </span>
-                  </motion.button>
+                  <PackCard key={p.id} p={p} onClick={() => startPack(p)} />
                 ))}
               </div>
             </>
@@ -649,6 +686,7 @@ export default function Page() {
         </div>
         <p className="sheet-sec">Тренировка</p>
         <div className="rows">
+          <Switch label="Звук сразу, когда открывается фраза" checked={settings.autoplay} onChange={(v) => setSettings({ autoplay: v })} />
           <Switch label="Сначала на слух (текст скрыт)" checked={settings.hide} onChange={(v) => setSettings({ hide: v })} />
           <Switch label="Подсказки и советы" checked={settings.tips} onChange={(v) => setSettings({ tips: v })} />
           <Switch label="Кириллица в разборе" checked={settings.cyrillic} onChange={(v) => setSettings({ cyrillic: v })} />
@@ -733,7 +771,8 @@ export default function Page() {
             style={{ position: "fixed", inset: 0, zIndex: 40 }}
           >
             <Practice
-              key={`${queue.index}-${current?.text}-${!!current?.s}`}
+              key={`${queue.index}-${current?.text}`}
+              text={current?.text ?? ""}
               item={current?.s ?? null}
               loading={!current?.s}
               loadError={current?.err ?? ""}
