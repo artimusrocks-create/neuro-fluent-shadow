@@ -57,8 +57,8 @@ android {
         applicationId "com.neurofluent.shadow"
         minSdkVersion 24
         targetSdkVersion 36
-        versionCode 1
-        versionName "1.0.0"
+        versionCode((System.getenv("VERSION_CODE") ?: "1") as int)
+        versionName(System.getenv("VERSION_NAME") ?: "1.0.0")
 
         // The name for the application
         resValue "string", "appName", twaManifest.name
@@ -150,9 +150,25 @@ android {
 
         
     }
+    // Release signing for automatic builds (GitHub Actions → .github/workflows/android.yml).
+    // The key never lives in the repo: CI writes it from the ANDROID_KEYSTORE_BASE64 secret and passes its path here.
+    signingConfigs {
+        release {
+            def ksPath = System.getenv("ANDROID_KEYSTORE_PATH")
+            if (ksPath) {
+                storeFile file(ksPath)
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS") ?: "shadow"
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD") ?: System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled true
+            if (System.getenv("ANDROID_KEYSTORE_PATH")) {
+                signingConfig signingConfigs.release
+            }
         }
     }
     compileOptions {

@@ -1,0 +1,98 @@
+name: Android app
+
+# Builds the signed Android app: an APK for the website and an AAB for Google Play.
+# Runs when a tag like `android-v1.0.1` is pushed, or by hand: GitHub → Actions → "Android app" → Run workflow.
+#
+# Needs two repository secrets (GitHub → Settings → Secrets and variables → Actions → New repository secret):
+#   ANDROID_KEYSTORE_BASE64    the signing key as base64 (file "ANDROID_KEYSTORE_BASE64.txt" in the Drive key folder)
+#   ANDROID_KEYSTORE_PASSWORD  its password (in "README - KEY + PASSWORD.txt" in the same folder)
+# The key is written to a temporary file for the build and deleted right after. It is never stored in the repo.
+
+on:
+  push:
+    tags: ["android-v*"]
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: "Version name, e.g. 1.0.1 (blank = take it from android/twa-manifest.json)"
+        required: false
+      version_code:
+        description: "Version code: a whole number, bigger than the last upload (blank = from twa-manifest.json)"
+        required: false
+
+permissions:
+  contents: write # lets a tag build attach the files to a GitHub Release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Check the signing secrets are set
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KS" ] || [ -z "$PW" ]; then
+            echo "::error::Add the secrets ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+
+      - name: Pick the version
+        id: v
+        env:
+          IN_NAME: ${{ inputs.version_name }}
+          IN_CODE: ${{ inputs.version_code }}
+        run: |
+          NAME="${IN_NAME:-$(jq -r .appVersionName twa-manifest.json)}"
+          CODE="${IN_CODE:-$(jq -r .appVersionCode twa-manifest.json)}"
+          [[ "$CODE" =~ ^[0-9]+$ ]] || { echo "::error::Version code must be a whole number, got '$CODE'"; exit 1; }
+          [[ "$NAME" =~ ^[0-9A-Za-z.\-]+$ ]] || { echo "::error::Odd version name '$NAME'"; exit 1; }
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "Building $NAME (code $CODE)"
+
+      - name: Build the signed APK and AAB
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          VERSION_NAME: ${{ steps.v.outputs.name }}
+          VERSION_CODE: ${{ steps.v.outputs.code }}
+        run: |
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.keystore"
+          printf '%s' "$KS" | base64 -d > "$ANDROID_KEYSTORE_PATH"
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease bundleRelease
+          rm -f "$ANDROID_KEYSTORE_PATH"
+          mkdir -p ../dist
+          cp app/build/outputs/apk/release/app-release.apk "../dist/neuro-fluent-shadow-$VERSION_NAME.apk"
+          cp app/build/outputs/bundle/release/app-release.aab "../dist/neuro-fluent-shadow-$VERSION_NAME.aab"
+
+      - name: Check it is signed with our key
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs ../dist/*.apk | tee cert.txt
+          grep -qi "6c44717626edbbe7b77be4cc332f387635d620ca5eea47af7c8b96633fda0ea9" cert.txt \
+            || { echo "::error::The APK is signed with a different key than the one the website vouches for (lib/android.ts)."; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ steps.v.outputs.name }}
+          path: dist/*
+
+      - name: Attach to a GitHub Release (tag builds only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*

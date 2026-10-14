@@ -24,6 +24,7 @@ type Dash = {
   recs: MyRec[];
   telegram: { configured: boolean; subscribers: number; appUrl: string | null; bot: string | null; adminChat: boolean };
   money: { pro: ProRow[]; log: PayRow[]; days: DayRow[]; offer: { telegram: boolean; card: boolean; stars: number; priceRub: string; priceUsd: string } };
+  reports?: { kind: "ai" | "delete"; text: string; where: string; note: string; contact: string; at: string }[];
 };
 type Tab = "students" | "inbox" | "money" | "telegram";
 
@@ -302,6 +303,20 @@ export default function Teacher() {
 
       {dash && tab === "inbox" && (
         <section className="results">
+          {(dash.reports?.length ?? 0) > 0 && (
+            <div className="report-list" aria-label="Жалобы и просьбы">
+              <h3>🚩 Жалобы на разборы и просьбы удалить данные</h3>
+              {dash.reports!.map((rp, i) => (
+                <div key={i} className="report-item">
+                  <span>
+                    <b>{rp.kind === "ai" ? "Ошибка в разборе" : "Удалить данные"}</b> <span className="muted">· {ago(rp.at)}</span>
+                  </span>
+                  {rp.kind === "ai" ? <span>«{rp.text}»{rp.where === "words" ? " (слова)" : ""}</span> : <span>Контакт: {rp.contact}</span>}
+                  {rp.note && <span className="muted">{rp.note}</span>}
+                </div>
+              ))}
+            </div>
+          )}
           {dash.recs.length === 0 && (
             <div className="empty">
               <p>Записей пока нет. Ученики отправляют их кнопкой «📤 Отправить преподу» после того, как запишут себя.</p>

@@ -701,7 +701,7 @@ export default function Page() {
               <a href="/start">О приложении</a> · <a href="/terms">Условия</a> ·{" "}
             </>
           )}
-          <a href="/phrases">Все фразы</a> · <a href="/privacy">Конфиденциальность</a> ·{" "}
+          <a href="/phrases">Все фразы</a> · <a href="/privacy">Конфиденциальность</a> · <a href="/delete-data">Удалить данные</a> ·{" "}
           <a href={me?.free?.contact || "https://t.me/rawmeatsalad"} target="_blank" rel="noopener noreferrer">
             Написать Артёму
           </a>

@@ -10,6 +10,7 @@ export default function SiteFooter() {
         <Link href="/download">Скачать</Link>
         <Link href="/terms">Условия</Link>
         <Link href="/privacy">Конфиденциальность</Link>
+        <Link href="/delete-data">Удалить данные</Link>
         <a href={CONTACT.telegram} target="_blank" rel="noopener noreferrer">
           Написать Артёму
         </a>

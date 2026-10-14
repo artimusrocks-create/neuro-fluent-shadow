@@ -44,6 +44,7 @@ import { libId, review, setSettings, toggleSave, track, useProgress } from "@/li
 import { renderReel } from "@/lib/reels";
 import { DEFAULT_VOICE, VOICES } from "@/lib/voices";
 import Sheet from "./ui/Sheet";
+import ReportButton from "./ui/ReportButton";
 import Waveform from "./Waveform";
 
 // tts = speed asked from the voice; rate = extra browser slow-down (voice can't go below 0.7)
@@ -815,6 +816,7 @@ export default function Practice(props: Props) {
                 ))}
               </div>
             )}
+            <ReportButton key={s.text} text={s.text} where="breakdown" />
           </>
         )}
       </Sheet>
@@ -872,6 +874,7 @@ export default function Practice(props: Props) {
             )
           )}
         </div>
+        {s && wordData && wordData.length > 0 && <ReportButton key={s.text} text={s.text} where="words" />}
       </Sheet>
     </div>
   );

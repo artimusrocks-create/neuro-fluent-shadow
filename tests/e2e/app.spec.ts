@@ -56,6 +56,34 @@ test("a phrase pack opens full-screen practice", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("an AI breakdown can be flagged without leaving the app (Google Play rule)", async ({ page }) => {
+  const errors = await prepare(page);
+  await page.goto("/");
+  await page.getByRole("navigation", { name: "Навигация" }).getByRole("button", { name: "Наборы" }).click();
+  await page.getByRole("button", { name: /В кафе и ресторане/ }).click();
+  const practice = page.getByRole("dialog", { name: "Тренировка" });
+  await expect(practice.getByRole("button", { name: "Слушать" })).toBeEnabled();
+  await practice.getByRole("button", { name: "Ещё" }).click();
+  await page.getByRole("button", { name: "Полный разбор" }).click();
+  const details = page.getByRole("dialog", { name: "Полный разбор" });
+  await details.getByRole("button", { name: /Ошибка в разборе\? Сообщить/ }).click();
+  await details.getByLabel(/Что не так/).fill("Странное ударение");
+  await details.getByRole("button", { name: "Отправить" }).click();
+  await expect(details.getByText("Спасибо! Артём посмотрит и поправит.")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("the data-deletion page sends a request", async ({ page }) => {
+  const errors = await prepare(page);
+  await page.goto("/delete-data");
+  await expect(page.getByRole("heading", { name: "Удалить мои данные" })).toBeVisible();
+  await page.getByLabel("Почта, Telegram или код доступа").fill("lena@example.com");
+  await page.getByRole("button", { name: "Удалить мои данные" }).click();
+  await expect(page.getByText(/Запрос отправлен/)).toBeVisible();
+  await noSideScroll(page);
+  expect(errors).toEqual([]);
+});
+
 test("a link to one phrase opens it straight away", async ({ page }) => {
   await prepare(page);
   await page.goto(`/?p=${encodeURIComponent("Can I get a coffee to go?")}`);
@@ -158,7 +186,7 @@ test("teacher sees Pro customers and payments", async ({ page, request }) => {
   await expect(page.getByText(/9 USD/).first()).toBeVisible();
 });
 
-for (const path of ["/start", "/phrases", "/phrase/can-i-get-a-coffee-to-go", "/phrase/not-bad-cant-complain-how-about-you", "/download", "/privacy", "/terms", "/nope-404"]) {
+for (const path of ["/start", "/phrases", "/phrase/can-i-get-a-coffee-to-go", "/phrase/not-bad-cant-complain-how-about-you", "/download", "/privacy", "/terms", "/delete-data", "/nope-404"]) {
   test(`public page ${path} renders cleanly on a phone`, async ({ page }) => {
     const errors = await prepare(page);
     const res = await page.goto(path);

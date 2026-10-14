@@ -12,6 +12,7 @@ A shadowing companion for American English, for Russian speakers. Paste a phrase
 - 💎 **Shadow Pro** subscription: Telegram Stars or card (lava.top, Russian and foreign cards)
 - 📱 **Android app** (`/android`, downloadable APK at `/download`), installable on iPhone and desktop
 - 🔎 **Public phrase pages** (`/phrases`, `/phrase/...`) for search engines, landing page `/start`, legal pages
+- 🚩 **Google Play requirements**: «Ошибка в разборе? Сообщить» under every AI answer (in-app flagging) and a `/delete-data` page; both land in `/teacher` → Входящие and in your Telegram
 
 ---
 
@@ -62,6 +63,9 @@ npm run check        # all of the above
 ```
 
 GitHub Actions runs the same on every push (`.github/workflows/ci.yml`).
+
+The Android app is built and signed by GitHub too (`.github/workflows/android.yml`): push a tag like `android-v1.0.1`
+or press Run workflow. See `android/README.md`.
 
 ## Where to change things
 

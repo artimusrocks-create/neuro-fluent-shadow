@@ -6,6 +6,7 @@ import { jsonError } from "@/lib/server";
 import { setupTelegram, tg, tgConfigured } from "@/lib/telegram";
 import { extendUntil, getStudent, grantPro, logPay, offer, patchStudent, payLog, personalLink, proAccounts, refundMonth, revokePro, validEmail } from "@/lib/pro";
 import { stats } from "@/lib/analytics";
+import type { Report } from "@/lib/reports";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -68,7 +69,7 @@ export async function GET(req: Request) {
   const recs = (await getRecs(recIds)).map(publicRec);
   const subs = await r.scard("tg:subs");
 
-  const [pros, log, days, off, adminChat] = await Promise.all([proAccounts(), payLog(60), stats(14), offer(), r.get<string>("cfg:adminChat")]);
+  const [pros, log, days, off, adminChat, reports] = await Promise.all([proAccounts(), payLog(60), stats(14), offer(), r.get<string>("cfg:adminChat"), r.lrange<Report>("reports", 0, 49)]);
   const pro = pros
     .map((s) => ({ id: s.id, name: s.name, code: s.code, email: s.email ?? null, tgUser: s.tgUser ?? null, src: s.src ?? null, until: s.until ?? null, autoRenew: !!s.autoRenew, active: isActive(s), seen: seen[s.id] ?? null, canRefundStars: !!(s.tg && s.starsCharge) }))
     .sort((a, b) => Number(b.active) - Number(a.active) || (b.until ?? "").localeCompare(a.until ?? ""));
@@ -78,6 +79,7 @@ export async function GET(req: Request) {
     recs,
     telegram: { configured: tgConfigured(), subscribers: subs, appUrl: await r.get<string>("cfg:appUrl"), bot: await r.get<string>("cfg:bot"), adminChat: !!(adminChat || process.env.TEACHER_CHAT_ID) },
     money: { pro, log, days, offer: off },
+    reports: reports ?? [],
   });
 }
 

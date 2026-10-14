@@ -398,6 +398,8 @@ export const startStars = (nonce: string) => post<{ link: string; bot: string | 
 export const startCard = (nonce: string, email: string, currency: "RUB" | "USD" | "EUR") =>
   post<{ url: string }>("/api/pro/checkout", { nonce, email, currency, utm: savedUtm() });
 export const restoreAccess = (email: string) => post<{ sent?: boolean; manual?: boolean; contact?: string }>("/api/pro/restore", { email });
+/** A message to the teacher without leaving the app: a flagged AI answer, or a request to delete one's data. */
+export const sendReport = (r: { kind: "ai" | "delete"; text?: string; where?: string; note?: string; contact?: string }) => post<{ ok: boolean }>("/api/report", r);
 /** Has the payment for this checkout arrived? `code` for a new account; `extended` if it extended an account that already had this email. */
 export async function checkClaim(nonce: string): Promise<{ code?: string; extended?: boolean } | null> {
   try {
