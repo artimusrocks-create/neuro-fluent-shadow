@@ -30,7 +30,8 @@ function streakOf(days: string[] = []) {
 async function teacherOnly(req: Request) {
   const who = await getWho(req);
   if (isResponse(who)) return who;
-  if (who.role !== "teacher") return jsonError("Только для препода.", 403);
+  // "passcode" makes the cabinet show the password box again (a wrong or old code saved in the browser).
+  if (who.role !== "teacher") return NextResponse.json({ error: "passcode", message: "Пароль препода не подошёл." }, { status: 403 });
   if (!redis()) return jsonError("База данных ещё не подключена. Vercel → Storage → Upstash Redis → Connect, потом Redeploy.", 500);
   return null;
 }

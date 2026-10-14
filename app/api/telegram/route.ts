@@ -271,7 +271,7 @@ export async function POST(req: Request) {
       await tg("sendMessage", { chat_id: chatId, text: `Условия использования и оплаты: ${base}/terms\nКонфиденциальность: ${base}/privacy`, disable_web_page_preview: true });
     } else if (text.startsWith("/admin")) {
       const pass = text.split(/\s+/)[1] ?? "";
-      if (pass && pass === process.env.APP_PASSCODE && r) {
+      if (pass && pass === process.env.APP_PASSCODE?.trim() && r) {
         await r.set("cfg:adminChat", String(chatId));
         await tg("sendMessage", { chat_id: chatId, text: "Готово. Сюда будут приходить оплаты и утренний отчёт." });
         // Make sure Telegram tells the bot when it becomes a channel admin, then connect a channel added earlier.

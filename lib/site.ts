@@ -19,7 +19,7 @@ export const LEGAL = {
 export const PRICES = {
   stars: Number(process.env.PRO_STARS || 450),
   rub: process.env.PRO_PRICE_RUB || "690 ₽",
-  usd: process.env.PRO_PRICE_USD || "$9",
+  usd: process.env.PRO_PRICE_USD || "≈ $8", // lava.top converts 690 ₽ at the day's rate (about $8.2)
 };
 
 export const ANDROID_APK = process.env.NEXT_PUBLIC_APK_URL || "/download/neuro-fluent-shadow.apk";

@@ -125,7 +125,7 @@ test("after 5 free phrases the Pro offer appears with both ways to pay", async (
   await page.getByRole("button", { name: "Разобрать" }).click();
   await expect(page.getByRole("heading", { name: "Бесплатные фразы на сегодня закончились" })).toBeVisible();
   await expect(page.getByRole("button", { name: /В Telegram · 450 ⭐ в месяц/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Картой · 690 ₽ или \$9/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Картой · 690 ₽ или ≈ \$8/ })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -195,7 +195,7 @@ test("inside the Android app: no prices, no payment buttons", async ({ page }) =
   await page.getByLabel("Фраза на английском").fill("One phrase too many");
   await page.getByRole("button", { name: "Разобрать" }).click();
   await expect(page.getByRole("heading", { name: "На сегодня всё" })).toBeVisible();
-  await expect(page.getByText(/⭐|₽|\$9/)).toHaveCount(0);
+  await expect(page.getByText(/⭐|₽|\$8/)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Войти по коду" })).toBeVisible();
 });
 
@@ -205,7 +205,11 @@ test("teacher sees Pro customers and payments", async ({ page, request }) => {
     headers: { "X-Api-Key": "lava-hook-secret" },
     data: { eventType: "payment.success", contractId: "c-teacher-1", buyer: { email: "oleg@example.com" }, amount: 9, currency: "USD", status: "subscription-active" },
   });
+  // A wrong password saved earlier in this browser: the cabinet asks again instead of a dead end.
   await page.goto("/teacher");
+  await page.evaluate(() => localStorage.setItem("nf-passcode", "lena-oldcode"));
+  await page.reload();
+  await expect(page.getByText("Пароль не подошёл", { exact: false })).toBeVisible();
   await page.getByLabel("Пароль препода").fill("teach-pass");
   await page.getByRole("button", { name: "Войти" }).click();
   await page.getByRole("button", { name: /Деньги/ }).click();

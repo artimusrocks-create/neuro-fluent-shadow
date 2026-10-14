@@ -116,6 +116,28 @@ describe("abuse protection (from the review)", () => {
     expect(teacher.role).not.toBe("teacher");
   });
 
+  it("an old wrong code still saved in a browser never locks the teacher out", async () => {
+    // Every request from that browser carries the same stale code: it counts as one miss, not fifty.
+    for (let i = 0; i < 50; i++) await getWho(req("/api/me", { headers: { "x-passcode": "old-code-123", "x-forwarded-for": "10.7.7.7" } }));
+    const teacher = (await getWho(req("/api/me", { headers: { "x-passcode": "teach-pass", "x-forwarded-for": "10.7.7.7" } }))) as Who;
+    expect(teacher.role).toBe("teacher");
+    // Misses are stored as fingerprints, never as the typed codes themselves.
+    const misses = await redis()!.smembers(`badcodes:10.7.7.7:${dayKey()}`);
+    expect(misses).toHaveLength(1);
+    expect(misses[0]).not.toContain("old-code");
+  });
+
+  it("a space or line break pasted into APP_PASSCODE doesn't break the teacher password", async () => {
+    const saved = process.env.APP_PASSCODE;
+    process.env.APP_PASSCODE = " teach-pass\n";
+    try {
+      const teacher = (await getWho(req("/api/me", { headers: { "x-passcode": "teach-pass" } }))) as Who;
+      expect(teacher.role).toBe("teacher");
+    } finally {
+      process.env.APP_PASSCODE = saved;
+    }
+  });
+
   it("IPv6 visitors are counted per /64 block", () => {
     expect(clientIp(new Request("http://x", { headers: { "x-forwarded-for": "2a02:6b8:1:2:aaaa:bbbb:cccc:dddd" } }))).toBe("2a02:6b8:1:2::/64");
     expect(clientIp(new Request("http://x", { headers: { "x-forwarded-for": "1.2.3.4" } }))).toBe("1.2.3.4");

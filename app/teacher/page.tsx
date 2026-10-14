@@ -80,20 +80,27 @@ export default function Teacher() {
   const [origin, setOrigin] = useState("");
   const [grant, setGrant] = useState({ name: "", email: "", days: 30 });
 
+  // A wrong or old password (or a student's code) saved in this browser brings the password box back.
+  const wrongPass = (e: unknown) => {
+    if (!(e instanceof ApiError && e.kind === "passcode")) return false;
+    setNeedLogin(true);
+    setDash(null);
+    setError("Пароль не подошёл. Проверь большие и маленькие буквы и попробуй ещё раз.");
+    return true;
+  };
+
   const load = useCallback(async () => {
     setError("");
     try {
       setDash(await teacherGet<Dash>());
       setNeedLogin(false);
     } catch (e) {
-      if (e instanceof ApiError && e.kind === "passcode") setNeedLogin(true);
-      else setError(e instanceof Error ? e.message : "Не загрузилось.");
+      if (!wrongPass(e)) setError(e instanceof Error ? e.message : "Не загрузилось.");
     }
   }, []);
 
   useEffect(() => {
     setOrigin(window.location.origin);
-    setPass(getPasscode());
     if (!getPasscode()) setNeedLogin(true);
     else load();
   }, [load]);
@@ -111,7 +118,7 @@ export default function Teacher() {
       await load();
       return res;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Не получилось.");
+      if (!wrongPass(e)) setError(e instanceof Error ? e.message : "Не получилось.");
       return null;
     }
   }
@@ -136,12 +143,13 @@ export default function Teacher() {
           }}
         >
           <label htmlFor="tpass">Пароль препода</label>
-          <input id="tpass" value={pass} onChange={(e) => setPass(e.target.value)} autoComplete="off" />
-          <button type="submit" className="go small">
+          <input id="tpass" value={pass} onChange={(e) => setPass(e.target.value)} autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} />
+          <button type="submit" className="go small" disabled={!pass.trim()}>
             Войти
           </button>
         </form>
         {error && <div className="status error">{error}</div>}
+        <p className="hint">Забыл пароль? Он лежит в Vercel → Settings → Environment Variables → APP_PASSCODE.</p>
       </main>
     );
   }

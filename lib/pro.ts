@@ -39,7 +39,7 @@ export async function offer(): Promise<Offer> {
     stars: starsPrice(),
     card: !!(process.env.LAVA_API_KEY && process.env.LAVA_OFFER_ID && r),
     priceRub: process.env.PRO_PRICE_RUB || "690 ₽",
-    priceUsd: process.env.PRO_PRICE_USD || "$9",
+    priceUsd: process.env.PRO_PRICE_USD || "≈ $8",
     days: PRO_DAYS,
   };
 }

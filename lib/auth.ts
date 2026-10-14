@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { dayKey, redis } from "./store";
 import { PACKS } from "./packs";
@@ -72,20 +73,22 @@ export const CHAR_LIMITS = { demo: 4000, demoIp: 12000, demoAll: 150000, pro: 30
 /** Figure out who is calling. Returns a Who, or a ready error response. */
 export async function getWho(req: Request): Promise<Who | NextResponse> {
   const code = (req.headers.get("x-passcode") ?? "").trim();
-  const teacherCode = process.env.APP_PASSCODE;
+  const teacherCode = process.env.APP_PASSCODE?.trim(); // a space pasted into Vercel must not lock the teacher out
   const r = redis();
 
-  // Wrong codes are counted per network: after 30 misses a day we stop checking codes from there,
+  // Wrong codes are counted per network: after 30 different wrong codes a day we stop checking codes from there,
   // so nobody can guess a student's code or the teacher password by trying many.
-  const missKey = `badcode:${clientIp(req)}:${dayKey()}`;
-  const guessing = code && r ? Number((await r.get<number>(missKey)) ?? 0) >= 30 : false;
+  // The same wrong code sent again and again (an old code still saved in a browser) counts once,
+  // so normal use with a stale code can't lock the teacher out of the right password.
+  const missKey = `badcodes:${clientIp(req)}:${dayKey()}`;
+  const guessing = code && r ? (await r.scard(missKey).catch(() => 0)) >= GUESSES_PER_DAY : false;
 
   if (code && teacherCode && !guessing && code === teacherCode) return { role: "teacher", id: "teacher", name: "Препод" };
 
   let lapsed: Student | undefined;
   if (code && r && !guessing) {
     const id = await r.get<string>(`code:${code.toLowerCase()}`);
-    if (!id) await bump(missKey, 2).catch(() => 0);
+    if (!id) await rememberMiss(missKey, code).catch(() => 0);
     if (id) {
       const student = await r.hget<Student>("students", id);
       if (student) {
@@ -110,6 +113,15 @@ export async function getWho(req: Request): Promise<Who | NextResponse> {
 }
 
 export const isResponse = (x: unknown): x is NextResponse => x instanceof NextResponse;
+
+const GUESSES_PER_DAY = 30;
+
+/** Remember a wrong code by its fingerprint (never the code itself: it may be a near-miss of the teacher password). */
+async function rememberMiss(key: string, code: string) {
+  const r = redis()!;
+  const print = createHash("sha256").update(code.toLowerCase()).digest("hex").slice(0, 16);
+  if ((await r.sadd(key, print)) === 1) await r.expire(key, 2 * 86400);
+}
 
 async function bump(key: string, ttlDays: number): Promise<number> {
   const r = redis()!;

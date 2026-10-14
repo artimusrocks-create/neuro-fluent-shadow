@@ -104,6 +104,9 @@ describe("API routes", () => {
     await teacherPOST(req("/api/teacher", { json: { action: "revoke", id }, headers: t }));
     const after = await (await teacherGET(req("/api/teacher", { headers: t }))).json();
     expect(after.money.pro[0].active).toBe(false);
-    expect((await teacherGET(req("/api/teacher"))).status).toBe(403);
+    const stranger = await teacherGET(req("/api/teacher", { headers: { "x-passcode": "lena-oldcode" } }));
+    expect(stranger.status).toBe(403);
+    // "passcode" tells the cabinet to show the password box again instead of a dead end.
+    expect((await stranger.json()).error).toBe("passcode");
   });
 });
