@@ -46,6 +46,7 @@ import {
 } from "@/lib/client";
 import { PACKS, Pack, phraseOfTheDay, todaysSession } from "@/lib/packs";
 import { MAX_ITEMS, splitSentences } from "@/lib/sentences";
+import { PLAN, WEEKS, planLabel, planState } from "@/lib/plan";
 import { BADGES, getState, isDue, mergeRemote, missionProgress, onBadges, onChange, setSettings, streak, track, useProgress } from "@/lib/progress";
 import { VOICES, pickVoice } from "@/lib/voices";
 
@@ -65,6 +66,15 @@ const TIPS = [
 // Tap-to-try examples under the text box. Pack phrases: their breakdown and audio are ready, so they open instantly.
 const EXAMPLES = ["Can I get a coffee to go?", "Sorry, you're on mute.", "You gotta be kidding me."];
 const MAX_PASTE = 12000;
+
+// «Почему это работает»: the learning science behind the method, in plain words (each point is real research,
+// kept modest: no miracle claims).
+const WHY = [
+  { i: "🎧", t: "Фонологическая петля", d: "Повторяя следом за голосом, ты тренируешь рабочую память на английские звуки. Быстрая речь перестаёт звучать как каша." },
+  { i: "🗣", t: "Эффект проговаривания", d: "Сказанное вслух запоминается лучше, чем прочитанное про себя. Поэтому здесь всё вслух." },
+  { i: "🎵", t: "Ритм, а не отдельные звуки", d: "Русский акцент выдаёт ритм: мы говорим каждое слово полностью и одинаково громко. Американцы бьют по главным словам, а маленькие проглатывают." },
+  { i: "🔁", t: "Кривая забывания", d: "Сохранённая фраза возвращается через 1, 3, 7, 14 и 30 дней, как раз когда мозг начинает её забывать." },
+];
 
 /** A topic card: icon, name, and one phrase with how it really sounds. */
 function PackCard({ p, onClick }: { p: Pack; onClick: () => void }) {
@@ -308,10 +318,18 @@ export default function Page() {
   }
   const startTexts = (texts: string[], label: string, index = 0) => startQueue(texts.map((t) => ({ text: t })), label, false, index);
   const startPack = (p: Pack) => (trackEvent("pack"), startTexts(p.phrases, p.title));
+  // «Начать тренировку» = today's step of the 21-day plan.
   function startToday() {
-    const t = todaysSession();
     trackEvent("start_today");
-    startTexts(t.texts, t.pack.title);
+    const it = plan.item;
+    if (it.pack) return startTexts(it.pack.phrases, it.pack.title);
+    focusOwnText();
+    setNotice(`День ${it.day} из ${PLAN.length}: ${it.task}`);
+    setTimeout(() => setNotice(""), 9000);
+  }
+  function focusOwnText() {
+    boxRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    boxRef.current?.focus({ preventScroll: true });
   }
   function tryExample(x: string) {
     setText(x);
@@ -388,6 +406,7 @@ export default function Page() {
   const due = progress.library.filter(isDue);
   const mission = missionProgress(progress);
   const st = streak(progress);
+  const plan = planState(progress);
   const feedback = me?.recs.filter((r) => r.feedback).length ?? 0;
   const voice = pickVoice(settings.voice);
   const filteredPacks = PACKS.filter((p) => !search.trim() || (p.title + " " + p.blurb + " " + p.phrases.join(" ")).toLowerCase().includes(search.toLowerCase()));
@@ -450,23 +469,33 @@ export default function Page() {
                     <span aria-hidden>🚀</span>Ставишь американский акцент
                   </li>
                 </ol>
+                <p className="hero-note">🧠 Шэдоуинг: метод синхронных переводчиков. В Японии им учат английский с 90-х.</p>
                 <button type="button" className="start-big" onClick={startToday}>
                   <span className="start-ic" aria-hidden>
                     <Play size={22} fill="currentColor" />
                   </span>
                   <span className="start-txt">
                     <b>Начать тренировку</b>
-                    <small>Готовые фразы · около 5 минут</small>
+                    <small>
+                      {mounted ? `День ${plan.n} из ${PLAN.length} · ${planLabel(plan.item)}${plan.doneToday ? " ✓" : ""}` : "Готовые фразы · около 5 минут"}
+                    </small>
                   </span>
                 </button>
+                {mounted && plan.done > 0 && (
+                  <button type="button" className="plan-strip" onClick={() => go("progress")} aria-label="Мой прогресс и план">
+                    <span className="plan-bar">
+                      <i style={{ width: `${(plan.done / PLAN.length) * 100}%` }} />
+                    </span>
+                    <span>
+                      📅 Пройдено {plan.done} из {PLAN.length} · 🔥 {st} {plural(st, "день", "дня", "дней")} подряд{progress.best ? ` · ⭐ ${progress.best}` : ""}
+                    </span>
+                  </button>
+                )}
                 <div className="hero-links">
                   <button
                     type="button"
                     className="chip-link"
-                    onClick={() => {
-                      boxRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-                      boxRef.current?.focus({ preventScroll: true });
-                    }}
+                    onClick={focusOwnText}
                   >
                     ✍️ Вставить свой текст
                   </button>
@@ -514,6 +543,20 @@ export default function Page() {
                 <div className="ptiles">
                   {PACKS.map((p) => (
                     <PackTile key={p.id} p={p} onClick={() => startPack(p)} />
+                  ))}
+                </div>
+              </section>
+
+              <section className="home-sec">
+                <h2>🧠 Почему это работает</h2>
+                <div className="why-grid">
+                  {WHY.map((w) => (
+                    <div key={w.t} className="why">
+                      <b>
+                        <span aria-hidden>{w.i}</span> {w.t}
+                      </b>
+                      <p>{w.d}</p>
+                    </div>
                   ))}
                 </div>
               </section>
@@ -625,6 +668,31 @@ export default function Page() {
                   <b>{progress.counts.breakdowns}</b>
                   <span>фраз разобрано</span>
                 </div>
+              </div>
+              <div className="plan-card">
+                <h3>
+                  План: 21 день до естественного звучания · {plan.done} из {PLAN.length}
+                </h3>
+                {([1, 2, 3] as const).map((w) => (
+                  <div key={w} className="plan-week">
+                    <p>
+                      <b>
+                        Неделя {w}: {WEEKS[w].title}.
+                      </b>{" "}
+                      {WEEKS[w].goal}
+                    </p>
+                    <ol>
+                      {PLAN.filter((d) => d.week === w).map((d) => (
+                        <li key={d.day} className={d.day <= plan.done ? "done" : d.day === plan.n ? "now" : ""}>
+                          <span className="pd">{d.day <= plan.done ? "✓" : d.day}</span>
+                          <span>
+                            <b>{d.pack ? `${d.pack.emoji} ${d.pack.title}` : "✍️ Свой текст"}</b> · {d.task}
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ))}
               </div>
               <div className="mission-card">
                 <h3>Задача на сегодня {mission.complete ? "✓" : ""}</h3>
@@ -802,6 +870,15 @@ export default function Page() {
                 <p className="done-line">
                   «{done.label}»: {done.count} {plural(done.count, "фраза", "фразы", "фраз")} пройдено.{mounted && mission.complete ? " Задача на сегодня выполнена ✓" : ""}
                 </p>
+                {mounted && (
+                  <p className="done-stats">
+                    📅{" "}
+                    {plan.doneToday
+                      ? `День ${plan.n} из ${PLAN.length} выполнен ✓`
+                      : `Чтобы засчитать день ${plan.n} из ${PLAN.length}, повтори фразу за голосом или запиши себя.`}
+                    {plan.doneToday && plan.next ? ` Завтра: ${planLabel(plan.next)}.` : ""}
+                  </p>
+                )}
                 {mounted && st > 0 && (
                   <p className="done-stats">
                     🔥 {st} {plural(st, "день", "дня", "дней")} подряд. Завтра эти фразы стоит повторить: так они останутся в голове.

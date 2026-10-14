@@ -56,9 +56,11 @@ test("home works on a phone and shows the free plan", async ({ page }) => {
 test("first screen: one big button starts ready phrases, nothing to type", async ({ page }) => {
   const errors = await prepare(page);
   await page.goto("/");
+  // Day 1 of the 21-day plan: the café topic.
+  await expect(page.getByRole("button", { name: /Начать тренировку.*День 1 из 21 · тема «В кафе и ресторане»/ })).toBeVisible();
   await page.getByRole("button", { name: /Начать тренировку/ }).click();
   const practice = page.getByRole("dialog", { name: "Тренировка" });
-  await expect(practice.locator(".track-count")).toHaveText("1 из 8");
+  await at(page, "В кафе и ресторане", "1 из 8");
   await expect(practice.getByRole("button", { name: "Слушать" })).toBeEnabled();
   expect(errors).toEqual([]);
 });
@@ -96,7 +98,7 @@ test("a pasted text opens at once, one sentence per step, and the voice is ready
 test("the end of a topic: a finish screen with the next topic, not a dead end", async ({ page }) => {
   const errors = await prepare(page);
   await page.goto("/");
-  await page.getByRole("button", { name: /В кафе и ресторане/ }).click();
+  await page.locator(".ptile", { hasText: "В кафе и ресторане" }).click();
   const practice = page.getByRole("dialog", { name: "Тренировка" });
   await at(page, "В кафе и ресторане", "1 из 8");
   for (let i = 2; i <= 8; i++) {
@@ -125,7 +127,8 @@ test("a phrase pack opens full-screen practice", async ({ page }) => {
   const errors = await prepare(page);
   await page.goto("/");
   await page.getByRole("navigation", { name: "Навигация" }).getByRole("button", { name: "Наборы" }).click();
-  await page.getByRole("button", { name: /В кафе и ресторане/ }).click();
+  await expect(page.getByRole("heading", { name: "Наборы фраз" })).toBeVisible();
+  await page.locator(".pcard", { hasText: "В кафе и ресторане" }).click();
   const practice = page.getByRole("dialog", { name: "Тренировка" });
   await expect(practice).toBeVisible();
   await at(page, "В кафе и ресторане", "1 из 8");
@@ -142,7 +145,8 @@ test("an AI breakdown can be flagged without leaving the app (Google Play rule)"
   const errors = await prepare(page);
   await page.goto("/");
   await page.getByRole("navigation", { name: "Навигация" }).getByRole("button", { name: "Наборы" }).click();
-  await page.getByRole("button", { name: /В кафе и ресторане/ }).click();
+  await expect(page.getByRole("heading", { name: "Наборы фраз" })).toBeVisible();
+  await page.locator(".pcard", { hasText: "В кафе и ресторане" }).click();
   const practice = page.getByRole("dialog", { name: "Тренировка" });
   await expect(practice.getByRole("button", { name: "Слушать" })).toBeEnabled();
   await practice.getByRole("button", { name: "Ещё" }).click();
