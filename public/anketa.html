@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta property="og:title" content="Анкета для уроков с Артёмом">
+<meta property="og:description" content="10 минут — и уроки будут про то, что интересно тебе">
+<title>Анкета для уроков с Артёмом</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800&family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+html,body{height:auto}body{margin:0}img{max-width:100%}[hidden]{display:none!important}
+/* Layout: one card on a squared exercise-book page; one question block per screen, progress as a "level" bar. */
+:root{
+  --paper:#f7f8fb; --grid:#dfe5f1; --card:#ffffff; --ink:#1d2b6b; --text:#1c2033; --muted:#5d6480;
+  --line:#d5dbea; --hl:#ffe14d; --hl-ink:#1c2033; --pen:#e0452b; --ok:#1f8f5f; --chip:#eef1f9;
+  --display:"Unbounded", "Arial Black", system-ui, sans-serif;
+  --body:"Golos Text", "Segoe UI", system-ui, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#12152a; --grid:#1d2240; --card:#1a1f3a; --ink:#a9b8ff; --text:#eceefa; --muted:#a2a8c6;
+  --line:#2e3560; --hl:#ffd93a; --hl-ink:#14172b; --pen:#ff7a62; --ok:#4fd39a; --chip:#232a4d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#12152a; --grid:#1d2240; --card:#1a1f3a; --ink:#a9b8ff; --text:#eceefa; --muted:#a2a8c6;
+  --line:#2e3560; --hl:#ffd93a; --hl-ink:#14172b; --pen:#ff7a62; --ok:#4fd39a; --chip:#232a4d; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--text);font-family:var(--body);font-size:17px;line-height:1.5;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:22px 22px;min-height:100%;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 48px}
+.wrap{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.bar{height:12px;background:var(--card);border:2px solid var(--ink);border-radius:999px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--hl);border-right:2px solid var(--ink);width:0;transition:width .35s ease}
+.card{background:var(--card);border:2px solid var(--ink);border-radius:18px;padding:28px 24px;box-shadow:6px 6px 0 var(--ink);display:flex;flex-direction:column;gap:20px}
+h1,h2{font-family:var(--display);color:var(--ink);margin:0;line-height:1.15;text-wrap:balance}
+h1{font-size:clamp(26px,6vw,36px);font-weight:800}
+h2{font-size:clamp(20px,4.6vw,26px);font-weight:700}
+.mark{background:linear-gradient(transparent 55%,var(--hl) 55%);color:inherit;padding:0 2px}
+p{margin:0}
+.lead{color:var(--muted)}
+.field{display:flex;flex-direction:column;gap:8px}
+.field>label,.q{font-weight:600}
+.hint{font-size:14px;color:var(--muted);font-weight:400}
+input[type=text],textarea{font:inherit;color:var(--text);background:var(--paper);border:2px solid var(--line);border-radius:12px;padding:12px 14px;width:100%}
+textarea{min-height:110px;resize:vertical}
+input:focus,textarea:focus{outline:none;border-color:var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font:inherit;font-size:15px;font-weight:500;color:var(--text);background:var(--chip);border:2px solid transparent;border-radius:999px;padding:8px 14px;cursor:pointer;transition:transform .1s}
+.chip:hover{border-color:var(--line)}
+.chip[aria-pressed="true"]{background:var(--hl);color:var(--hl-ink);border-color:var(--ink);font-weight:700}
+.chip:active{transform:scale(.96)}
+.opts{display:grid;gap:10px}
+.opt{font:inherit;text-align:left;color:var(--text);background:var(--paper);border:2px solid var(--line);border-radius:12px;padding:12px 16px;cursor:pointer;display:flex;gap:12px;align-items:center}
+.opt:hover{border-color:var(--ink)}
+.opt[aria-pressed="true"]{background:var(--hl);color:var(--hl-ink);border-color:var(--ink);font-weight:600}
+.opt .k{font-family:var(--mono);font-size:13px;color:var(--muted);min-width:18px}
+.opt[aria-pressed="true"] .k{color:var(--hl-ink)}
+.idk{border-style:dashed}
+.scale{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.scale .opt{flex-direction:column;justify-content:center;text-align:center;gap:4px;padding:12px 4px;font-size:13px}
+.scale .opt b{font-size:28px;line-height:1}
+.cando{display:flex;flex-direction:column;gap:14px}
+.cando .row{display:flex;flex-direction:column;gap:8px;padding-bottom:14px;border-bottom:1px dashed var(--line)}
+.cando .row:last-child{border-bottom:0;padding-bottom:0}
+.cando .chips .chip{flex:1;text-align:center}
+.sentence{font-family:var(--mono);font-size:clamp(17px,4.4vw,21px);background:var(--paper);border:2px dashed var(--line);border-radius:12px;padding:16px;color:var(--text);overflow-wrap:anywhere}
+.qnum{font-family:var(--mono);font-size:13px;color:var(--pen);font-weight:600;letter-spacing:.05em}
+.nav{display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.btn{font-family:var(--display);font-weight:700;font-size:15px;border:2px solid var(--ink);border-radius:12px;padding:14px 22px;cursor:pointer;background:var(--ink);color:var(--card);box-shadow:3px 3px 0 var(--hl)}
+.btn:hover{transform:translate(-1px,-1px)}
+.btn.ghost{background:transparent;color:var(--ink);box-shadow:none}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn:focus-visible,.chip:focus-visible,.opt:focus-visible{outline:3px solid var(--pen);outline-offset:2px}
+.err{color:var(--pen);font-size:14px;font-weight:600}
+.facts{display:grid;gap:10px;padding:0;margin:0;list-style:none}
+.facts li{display:flex;gap:10px;align-items:baseline}
+.facts li span:first-child{font-family:var(--mono);color:var(--pen);font-weight:600}
+pre.report{font-family:var(--mono);font-size:13px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--paper);border:2px solid var(--line);border-radius:12px;padding:16px;margin:0;max-height:340px;overflow:auto;color:var(--text)}
+.toast{font-weight:600;color:var(--ok);min-height:1.5em}
+.stamp{display:inline-block;font-family:var(--display);font-weight:800;color:var(--pen);border:3px solid var(--pen);border-radius:10px;padding:6px 12px;transform:rotate(-4deg);font-size:15px;align-self:flex-start}
+.foot{text-align:center;font-size:13px;color:var(--muted)}
+@media (max-width:420px){.card{padding:22px 16px}.scale{grid-template-columns:repeat(5,1fr);gap:4px}.scale .opt{font-size:11px}.scale .opt b{font-size:24px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="top"><span id="stepLabel">Старт</span><span id="stepCount"></span></div>
+  <div class="bar" aria-hidden="true"><i id="barFill"></i></div>
+  <main class="card" id="card" aria-live="polite"></main>
+  <p class="foot">Артём · английский для тебя · Neuro-Fluent</p>
+</div>
+
+<script>
+(function(){
+const KEY='artyom-anketa-v1';
+let A={}; let step=0;
+try{const s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s&&s.A){A=s.A; step=s.step||0;}}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify({A,step}))}catch(e){}}
+
+const TEST=[
+ {lvl:'A1',s:'I ___ thirteen years old.',o:['am','is','are','have'],a:0},
+ {lvl:'A1',s:'My friend ___ a dog and two cats.',o:['have','has','is','are'],a:1},
+ {lvl:'A1',s:'Как будет «быстрый» по-английски?',o:['slow','fast','first','last'],a:1},
+ {lvl:'A2',s:'Yesterday I ___ football with my friends.',o:['play','played','playing','will play'],a:1},
+ {lvl:'A2',s:'___ you like pizza?',o:['Does','Are','Do','Is'],a:2},
+ {lvl:'A2',s:'My brother is ___ than me.',o:['tall','taller','tallest','more tall'],a:1},
+ {lvl:'B1',s:'I have ___ this movie three times.',o:['see','saw','seen','seeing'],a:2},
+ {lvl:'B1',s:'If it rains tomorrow, we ___ at home.',o:['stay','will stay','stayed','would stay'],a:1},
+ {lvl:'B1',s:"I'm really good ___ video games.",o:['in','on','at','for'],a:2},
+ {lvl:'B2',s:'If I ___ more free time, I would learn Japanese.',o:['have','had','will have','would have'],a:1},
+ {lvl:'B2',s:'This game ___ by millions of people every day.',o:['plays','is playing','is played','played'],a:2},
+ {lvl:'B2',s:'"I can\'t put up with this noise." Что значит put up with?',o:['выключить','терпеть','услышать','записать'],a:1}
+];
+
+const S=[]; // steps
+S.push({label:'Старт',render:intro});
+S.push({label:'Знакомимся',fields:[
+  {id:'name',type:'text',q:'Как тебя зовут?',req:true,ph:'Имя'},
+  {id:'age',type:'text',q:'Сколько тебе лет?',ph:'13'},
+  {id:'city',type:'text',q:'Из какого ты города?',ph:'Город'},
+  {id:'grade',type:'single',q:'В каком ты классе?',o:['5','6','7','8','9','Другое']}
+]});
+S.push({label:'Твои интересы',fields:[
+  {id:'interests',type:'chips',q:'Что тебе нравится? Выбирай сколько хочешь',o:['Компьютерные игры','Minecraft','Roblox','Brawl Stars','CS / Valorant','Футбол','Другой спорт','YouTube','TikTok','Аниме','Фильмы и сериалы','Музыка','Рисование','Программирование','Роботы и техника','Космос и наука','Животные','Книги и комиксы','Путешествия','Машины','Готовка','Мемы']},
+  {id:'interestsOther',type:'text',q:'Чего не хватает в списке?',ph:'Например: шахматы, скейт, Lego'}
+]});
+S.push({label:'Подробнее',fields:[
+  {id:'favGame',type:'text',q:'Любимые игры',ph:'Во что играешь чаще всего?'},
+  {id:'favYT',type:'text',q:'Любимые блогеры или каналы',ph:'Кого смотришь?'},
+  {id:'favShow',type:'text',q:'Любимые фильмы, сериалы, аниме',ph:''},
+  {id:'favMusic',type:'text',q:'Какую музыку слушаешь?',ph:'Исполнители, жанры'},
+  {id:'dream',type:'text',q:'Кем хочешь стать или чем заниматься, когда вырастешь?',ph:'Можно «пока не знаю»'}
+]});
+S.push({label:'Ты и английский',fields:[
+  {id:'years',type:'single',q:'Сколько лет ты учишь английский?',o:['Меньше года','1–3 года','3–5 лет','Больше 5 лет']},
+  {id:'where',type:'chips',q:'Где ты учил(а) английский?',o:['В школе','С репетитором','На курсах','В приложениях (Duolingo и т.п.)','Сам: игры, видео, песни']},
+  {id:'mark',type:'single',q:'Какая у тебя оценка по английскому в школе?',o:['2','3','4','5','Нет оценок']},
+  {id:'feel',type:'scale',q:'Как ты относишься к английскому?',o:[['😖','Не люблю'],['😕','Так себе'],['😐','Нормально'],['🙂','Нравится'],['🤩','Обожаю']]}
+]});
+S.push({label:'Зачем и что сложно',fields:[
+  {id:'why',type:'chips',q:'Зачем тебе английский? Выбери всё, что подходит',o:['Играть с иностранцами','Смотреть YouTube без перевода','Понимать песни','Путешествовать','Хорошие оценки','Сдать ОГЭ / ЕГЭ','Учиться за границей','Для будущей работы','Родители сказали 😅']},
+  {id:'hard',type:'chips',q:'Что для тебя самое сложное?',o:['Говорить','Понимать на слух','Грамматика','Запоминать слова','Писать','Читать','Произношение','Стесняюсь говорить']}
+]});
+S.push({label:'Проверь себя',fields:[
+  {id:'cando',type:'cando',q:'Честно оцени: можешь ли ты это сделать на английском?',rows:[
+    'Рассказать о себе: имя, возраст, хобби',
+    'Понять простое видео на YouTube без субтитров',
+    'Понять диалоги и задания в играх',
+    'Написать сообщение иностранцу в чате',
+    'Прочитать короткий текст или комикс',
+    'Понять, о чём поётся в песне'
+  ]}
+]});
+S.push({label:'Мини-тест',render:testIntro});
+TEST.forEach((t,i)=>S.push({label:'Тест '+(i+1)+' из '+TEST.length,test:i}));
+S.push({label:'Напиши о себе',fields:[
+  {id:'writing',type:'area',q:'Напиши по-английски 3–5 предложений о себе',hint:'Без переводчика и без помощи! Ошибки — это нормально, мне важно увидеть, как ты пишешь сейчас. Если совсем не получается — напиши хоть пару слов.',ph:'Hi! My name is…'}
+]});
+S.push({label:'Какие уроки тебе нужны',fields:[
+  {id:'likes',type:'chips',q:'Что тебе было бы интересно на уроках?',o:['Игры и квизы','Разговоры на интересные темы','Видео и YouTube','Песни','Разбор игр на английском','Мемы','Соревнования на баллы','Свои проекты','Сериалы и фильмы','Комиксы']},
+  {id:'boring',type:'text',q:'Что тебя бесило или было скучно на прошлых уроках английского?',ph:'Пиши честно, я не обижусь'},
+  {id:'hw',type:'single',q:'Как ты относишься к домашке?',o:['Нормально, если она интересная','Лучше короткая','Терпеть не могу','Делаю всегда']},
+  {id:'focus',type:'single',q:'Сколько ты можешь заниматься, не уставая?',o:['15–20 минут','30 минут','45 минут','Час и больше']}
+]});
+S.push({label:'Последний шаг',fields:[
+  {id:'extra',type:'area',q:'Что ещё мне стоит знать о тебе?',hint:'Что угодно: что тебя смешит, чем гордишься, что не любишь',ph:''},
+  {id:'askMe',type:'area',q:'Хочешь что-то спросить у меня?',ph:'Любой вопрос'}
+]});
+S.push({label:'Готово!',render:finish});
+
+const card=document.getElementById('card');
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function go(n){step=Math.max(0,Math.min(S.length-1,n));save();draw();window.scrollTo({top:0,behavior:'smooth'})}
+
+function draw(){
+  const st=S[step];
+  document.getElementById('stepLabel').textContent=st.label;
+  document.getElementById('stepCount').textContent=step>0&&step<S.length-1?('шаг '+step+' / '+(S.length-2)):'';
+  document.getElementById('barFill').style.width=Math.round(step/(S.length-1)*100)+'%';
+  if(st.render) return st.render();
+  if(st.test!==undefined) return drawTest(st.test);
+  let h='<h2>'+esc(st.label)+'</h2>';
+  st.fields.forEach(f=>{h+=fieldHTML(f)});
+  h+='<div class="err" id="err"></div>'+navHTML();
+  card.innerHTML=h; bindFields(st); bindNav(st);
+}
+
+function fieldHTML(f){
+  const v=A[f.id];
+  let h='<div class="field">';
+  const lab='<span class="q">'+esc(f.q)+'</span>'+(f.hint?'<span class="hint">'+esc(f.hint)+'</span>':'');
+  if(f.type==='text'){h+='<label for="f_'+f.id+'">'+esc(f.q)+'</label><input type="text" id="f_'+f.id+'" data-id="'+f.id+'" placeholder="'+esc(f.ph||'')+'" value="'+esc(v||'')+'" autocomplete="off">'}
+  else if(f.type==='area'){h+='<label for="f_'+f.id+'">'+esc(f.q)+'</label>'+(f.hint?'<span class="hint">'+esc(f.hint)+'</span>':'')+'<textarea id="f_'+f.id+'" data-id="'+f.id+'" placeholder="'+esc(f.ph||'')+'" spellcheck="false">'+esc(v||'')+'</textarea>'}
+  else if(f.type==='chips'){const sel=v||[];h+=lab+'<div class="chips">'+f.o.map(o=>'<button type="button" class="chip" data-multi="'+f.id+'" data-v="'+esc(o)+'" aria-pressed="'+sel.includes(o)+'">'+esc(o)+'</button>').join('')+'</div>'}
+  else if(f.type==='single'){h+=lab+'<div class="chips">'+f.o.map(o=>'<button type="button" class="chip" data-one="'+f.id+'" data-v="'+esc(o)+'" aria-pressed="'+(v===o)+'">'+esc(o)+'</button>').join('')+'</div>'}
+  else if(f.type==='scale'){h+=lab+'<div class="scale">'+f.o.map(o=>'<button type="button" class="opt" data-one="'+f.id+'" data-v="'+esc(o[1])+'" aria-pressed="'+(v===o[1])+'"><b>'+o[0]+'</b>'+esc(o[1])+'</button>').join('')+'</div>'}
+  else if(f.type==='cando'){const cv=v||{};h+=lab+'<div class="cando">'+f.rows.map((r,i)=>'<div class="row"><span>'+esc(r)+'</span><div class="chips">'+['Да','Чуть-чуть','Нет'].map(o=>'<button type="button" class="chip" data-cando="'+i+'" data-v="'+o+'" aria-pressed="'+(cv[i]===o)+'">'+o+'</button>').join('')+'</div></div>').join('')+'</div>'}
+  return h+'</div>';
+}
+function navHTML(next){return '<div class="nav"><button type="button" class="btn ghost" id="back">← Назад</button><button type="button" class="btn" id="next">'+(next||'Дальше →')+'</button></div>'}
+function bindFields(st){
+  card.querySelectorAll('input[data-id],textarea[data-id]').forEach(el=>el.addEventListener('input',()=>{A[el.dataset.id]=el.value;save()}));
+  card.querySelectorAll('[data-multi]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.multi;const arr=A[id]||[];const i=arr.indexOf(b.dataset.v);if(i>-1)arr.splice(i,1);else arr.push(b.dataset.v);A[id]=arr;b.setAttribute('aria-pressed',i===-1);save()}));
+  card.querySelectorAll('[data-one]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.one;A[id]=b.dataset.v;card.querySelectorAll('[data-one="'+id+'"]').forEach(x=>x.setAttribute('aria-pressed',x===b));save()}));
+  card.querySelectorAll('[data-cando]').forEach(b=>b.addEventListener('click',()=>{const cv=A.cando||{};cv[b.dataset.cando]=b.dataset.v;A.cando=cv;b.parentElement.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed',x===b));save()}));
+}
+function bindNav(st){
+  const back=document.getElementById('back');
+  if(back) back.addEventListener('click',()=>go(step-1));
+  const next=document.getElementById('next');
+  if(next) next.addEventListener('click',()=>{
+    if(st&&st.fields){const miss=st.fields.find(f=>f.req&&!(A[f.id]||'').trim());if(miss){document.getElementById('err').textContent='Напиши, пожалуйста, своё имя 🙂';return}}
+    go(step+1)});
+}
+
+function intro(){
+  card.innerHTML='<span class="stamp">Привет!</span>'+
+  '<h1>Давай <span class="mark">познакомимся</span></h1>'+
+  '<p>Я Артём, и я буду учить тебя английскому. Чтобы уроки были про то, что тебе реально интересно, а не как в учебнике, ответь на вопросы ниже.</p>'+
+  '<ul class="facts"><li><span>10 мин</span><span>Примерно столько это займёт</span></li>'+
+  '<li><span>0 оценок</span><span>Это не контрольная. Отвечай честно, «не знаю» — тоже хороший ответ</span></li>'+
+  '<li><span>в конце</span><span>Появится отчёт. Скопируй его и отправь мне</span></li></ul>'+
+  '<div class="nav"><span></span><button type="button" class="btn" id="next">'+(Object.keys(A).length?'Продолжить →':'Поехали →')+'</button></div>';
+  bindNav(null);
+}
+function testIntro(){
+  card.innerHTML='<h2>Мини-тест: <span class="mark">12 вопросов</span></h2>'+
+  '<p>Вопросы будут становиться сложнее. Это нормально, если ты знаешь не всё — так я пойму, с чего нам начать.</p>'+
+  '<p><b>Главное правило:</b> не угадывай. Если не знаешь ответ, жми «🤷 Не знаю». Переводчиком тоже не пользуйся 😉</p>'+navHTML('Начать тест →');
+  bindNav(null);
+}
+function drawTest(i){
+  const t=TEST[i]; const v=A['t'+i];
+  let h='<span class="qnum">ВОПРОС '+(i+1)+' / '+TEST.length+'</span>';
+  h+='<p class="q">'+(t.s.includes('___')?'Выбери слово, которое подходит:':'Выбери ответ:')+'</p>';
+  h+='<div class="sentence">'+esc(t.s)+'</div><div class="opts">';
+  t.o.forEach((o,k)=>{h+='<button type="button" class="opt" data-ans="'+k+'" aria-pressed="'+(v===k)+'"><span class="k">'+'ABCD'[k]+'</span>'+esc(o)+'</button>'});
+  h+='<button type="button" class="opt idk" data-ans="-1" aria-pressed="'+(v===-1)+'"><span class="k">?</span>🤷 Не знаю</button></div>';
+  h+=navHTML();
+  card.innerHTML=h;
+  card.querySelectorAll('[data-ans]').forEach(b=>b.addEventListener('click',()=>{
+    A['t'+i]=+b.dataset.ans; save();
+    card.querySelectorAll('[data-ans]').forEach(x=>x.setAttribute('aria-pressed',x===b));
+    setTimeout(()=>go(step+1),260);
+  }));
+  bindNav(null);
+}
+
+function level(score,byLvl){
+  if(score<=2) return 'A0–A1 (начинающий)';
+  if(byLvl.A1>=2&&byLvl.A2>=2&&byLvl.B1>=2&&byLvl.B2>=2) return 'B1–B2';
+  if(byLvl.A1>=2&&byLvl.A2>=2&&byLvl.B1>=2) return 'B1';
+  if(byLvl.A1>=2&&byLvl.A2>=2) return 'A2';
+  if(byLvl.A1>=2) return 'A1–A2';
+  return 'A1';
+}
+function list(v){return v&&v.length?v.join(', '):'—'}
+function val(v){return v&&String(v).trim()?String(v).trim():'—'}
+
+function buildReport(){
+  let score=0,idk=0; const by={A1:0,A2:0,B1:0,B2:0}; const lines=[];
+  TEST.forEach((t,i)=>{const v=A['t'+i];let r;
+    if(v===undefined) r='— (пропущен)';
+    else if(v===-1){r='🤷 не знаю';idk++}
+    else if(v===t.a){r='✅ '+t.o[v];score++;by[t.lvl]++}
+    else r='❌ '+t.o[v]+' (верно: '+t.o[t.a]+')';
+    lines.push((i+1)+'. ['+t.lvl+'] '+t.s+'\n   → '+r)});
+  const cv=A.cando||{}; const rows=S.find(s=>s.fields&&s.fields[0].id==='cando').fields[0].rows;
+  const out=[
+'📋 АНКЕТА УЧЕНИКА — для Артёма',
+'Дата: '+new Date().toLocaleDateString('ru-RU'),
+'',
+'👤 О СЕБЕ',
+'Имя: '+val(A.name),
+'Возраст: '+val(A.age),
+'Город: '+val(A.city),
+'Класс: '+val(A.grade),
+'',
+'🎮 ИНТЕРЕСЫ',
+'Нравится: '+list(A.interests)+(A.interestsOther&&A.interestsOther.trim()?', '+A.interestsOther.trim():''),
+'Игры: '+val(A.favGame),
+'Блогеры/каналы: '+val(A.favYT),
+'Фильмы/сериалы/аниме: '+val(A.favShow),
+'Музыка: '+val(A.favMusic),
+'Мечта/будущее: '+val(A.dream),
+'',
+'🇬🇧 АНГЛИЙСКИЙ',
+'Учит: '+val(A.years),
+'Где учил: '+list(A.where),
+'Оценка в школе: '+val(A.mark),
+'Отношение к английскому: '+val(A.feel),
+'Зачем нужен: '+list(A.why),
+'Самое сложное: '+list(A.hard),
+'',
+'🪞 САМООЦЕНКА',
+...rows.map((r,i)=>'• '+r+': '+(cv[i]||'—')),
+'',
+'📝 МИНИ-ТЕСТ: '+score+' / '+TEST.length+'  (не знаю: '+idk+')',
+'По уровням: A1 '+by.A1+'/3 · A2 '+by.A2+'/3 · B1 '+by.B1+'/3 · B2 '+by.B2+'/3',
+'Примерный уровень: '+level(score,by),
+...lines,
+'',
+'✍️ ПИСЬМО О СЕБЕ (без помощи)',
+val(A.writing),
+'',
+'📚 КАКИЕ УРОКИ НУЖНЫ',
+'Интересно: '+list(A.likes),
+'Было скучно/бесило: '+val(A.boring),
+'Домашка: '+val(A.hw),
+'Может заниматься без усталости: '+val(A.focus),
+'',
+'💬 ЕЩЁ',
+'О себе: '+val(A.extra),
+'Вопрос Артёму: '+val(A.askMe)
+  ];
+  return {text:out.join('\n'),score,lvl:level(score,by)};
+}
+
+function finish(){
+  const r=buildReport();
+  card.innerHTML='<span class="stamp">Готово!</span>'+
+  '<h2>Спасибо, '+esc(val(A.name)==='—'?'друг':A.name.trim())+'! 🎉</h2>'+
+  '<p>Теперь самое важное: <span class="mark">скопируй отчёт и отправь его мне</span> в тот же чат, где я прислал тебе ссылку.</p>'+
+  '<button type="button" class="btn" id="copy">📋 Скопировать отчёт</button>'+
+  '<div class="toast" id="toast" role="status"></div>'+
+  '<pre class="report" id="report" tabindex="0">'+esc(r.text)+'</pre>'+
+  '<p class="hint">Если кнопка не сработала: зажми текст в рамке (или выдели его мышкой), скопируй и вставь в чат.</p>'+
+  '<div class="nav"><button type="button" class="btn ghost" id="back">← Исправить ответы</button><button type="button" class="btn ghost" id="restart">Начать заново</button></div>';
+  document.getElementById('copy').addEventListener('click',()=>{
+    const done=()=>{document.getElementById('toast').textContent='✅ Скопировано! Теперь вставь в чат и отправь мне.'};
+    const fallback=()=>{const pre=document.getElementById('report');const sel=window.getSelection();const rg=document.createRange();rg.selectNodeContents(pre);sel.removeAllRanges();sel.addRange(rg);
+      let ok=false;try{ok=document.execCommand('copy')}catch(e){}
+      document.getElementById('toast').textContent=ok?'✅ Скопировано! Теперь вставь в чат и отправь мне.':'Текст выделен — нажми «Копировать» (Ctrl+C) и отправь мне.'};
+    try{navigator.clipboard.writeText(r.text).then(done,fallback)}catch(e){fallback()}
+  });
+  document.getElementById('back').addEventListener('click',()=>go(step-1));
+  let armed=false;
+  document.getElementById('restart').addEventListener('click',e=>{
+    if(!armed){armed=true;e.target.textContent='Точно? Нажми ещё раз';return}
+    A={};go(0)});
+}
+
+draw();
+})();
+</script>
+</body>
+</html>

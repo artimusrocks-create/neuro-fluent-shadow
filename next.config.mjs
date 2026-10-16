@@ -3,7 +3,10 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   async rewrites() {
-    return [{ source: "/.well-known/assetlinks.json", destination: "/api/assetlinks" }];
+    return [
+      { source: "/.well-known/assetlinks.json", destination: "/api/assetlinks" },
+      { source: "/anketa", destination: "/anketa.html" },
+    ];
   },
   async headers() {
     return [
