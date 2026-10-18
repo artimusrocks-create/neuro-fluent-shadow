@@ -1,0 +1,591 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><title>Misha · Loot Run</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Russo+One&family=Rubik:wght@400;500;600;700&display=swap"><style>
+/* Layout: a game HUD. Sticky top bar with lesson XP, a rail of numbered "inventory slot" tabs,
+   one section on screen at a time, sticky bottom pager. Deliberately single dark theme (night match). */
+:root{
+  color-scheme:dark;
+  --bg:#0c0a1d; --bg2:#120f2c; --panel:#171441; --panel2:#211d58; --line:#363080;
+  --fg:#f3f0ff; --mute:#aaa3dc;
+  --storm:#7d50ff; --cyan:#27e2ff; --gold:#ffc83d;
+  --ok:#3fe08b; --bad:#ff5d7d;
+  --t-common:#a3b0a9; --t-rare:#3b9dff; --t-epic:#b764ff; --t-legend:#ffb21f;
+  --f-disp:"Russo One","Arial Black",system-ui,sans-serif;
+  --f-body:"Rubik",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --r:14px;
+}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{background:var(--bg);color:var(--fg);font:16px/1.55 var(--f-body);min-height:100%;
+  background-image:radial-gradient(60rem 40rem at 110% -10%, rgba(125,80,255,.28), transparent 60%),radial-gradient(40rem 30rem at -20% 110%, rgba(39,226,255,.10), transparent 60%);
+  background-attachment:fixed}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg2)}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.inner{max-width:780px;margin:0 auto}
+
+/* top HUD */
+.hud{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:rgba(18,15,44,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.hud .inner{display:flex;flex-direction:column;gap:10px;padding-block:10px 0}
+.hud-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.brand{font-family:var(--f-disp);letter-spacing:.04em;font-size:15px;display:flex;align-items:center;gap:8px;margin-right:auto}
+.brand b{color:var(--gold);font-weight:400}
+.xp{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums}
+.xp .bar{width:min(34vw,180px);height:10px;border-radius:99px;background:var(--panel2);overflow:hidden;border:1px solid var(--line)}
+.xp .bar i{display:block;height:100%;width:var(--p,0%);background:linear-gradient(90deg,var(--storm),var(--cyan));transition:width .5s ease}
+.xp strong{color:var(--fg)}
+.tog{font:600 12px var(--f-body);color:var(--mute);background:transparent;border:1px solid var(--line);border-radius:8px;padding:5px 9px;cursor:pointer}
+.tog[aria-pressed="true"]{color:var(--bg);background:var(--gold);border-color:var(--gold)}
+.chip{font:600 11px var(--f-body);letter-spacing:.06em;text-transform:uppercase;padding:4px 8px;border-radius:99px;border:1px solid var(--line);color:var(--mute)}
+.chip[data-state="on"]{color:var(--ok);border-color:rgba(63,224,139,.5)}
+.tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:10px}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;display:flex;align-items:center;gap:7px;padding:7px 11px 7px 7px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--mute);font:500 13px var(--f-body);cursor:pointer}
+.tab-n{font-family:var(--f-disp);font-size:11px;width:26px;height:26px;display:grid;place-items:center;border-radius:7px;background:var(--panel2);color:var(--mute)}
+.tab[aria-current="true"]{color:var(--fg);border-color:var(--storm);box-shadow:0 0 0 1px var(--storm) inset}
+.tab[aria-current="true"] .tab-n{background:var(--storm);color:#fff}
+.tab:focus-visible,.btn:focus-visible,.tog:focus-visible,.gap:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+
+/* sections */
+main .inner{padding-block:22px 120px}
+.sec.enter{animation:slide .32s ease}
+@keyframes slide{from{opacity:.25;transform:translateX(calc(var(--dir,1) * 28px))}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.sec.enter{animation:none}.talk-q.pop{animation:none}}
+.kicker{font:600 12px var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:var(--cyan);margin:0 0 6px}
+h1,h2{font-family:var(--f-disp);font-weight:400;line-height:1.05;margin:0 0 10px;text-wrap:balance}
+h2{font-size:clamp(28px,6vw,40px)}
+h3{font:700 17px var(--f-body);margin:0 0 8px}
+p{margin:0 0 12px}
+.lead{color:var(--mute);max-width:62ch}
+.stack{display:flex;flex-direction:column;gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.note{color:var(--mute);font-size:14px;margin:0}
+
+/* hero */
+.hero{position:relative;overflow:hidden;border-radius:20px;border:1px solid var(--line);background:var(--bg2);padding:26px 20px 22px}
+.hero::before{content:"";position:absolute;width:420px;height:420px;right:-150px;top:-170px;border-radius:50%;
+  border:3px solid rgba(125,80,255,.75);box-shadow:0 0 40px rgba(125,80,255,.5), inset 0 0 60px rgba(125,80,255,.35);pointer-events:none}
+.hero::after{content:"";position:absolute;width:260px;height:260px;right:-70px;top:-90px;border-radius:50%;border:2px dashed rgba(39,226,255,.45);pointer-events:none}
+.hero h1{font-size:clamp(52px,15vw,104px);letter-spacing:.01em;position:relative}
+.hero h1 span{color:var(--gold)}
+.hero .lead{position:relative;color:#d9d3ff}
+.missions{list-style:none;margin:18px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;position:relative}
+.missions li{background:rgba(23,20,65,.85);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;display:flex;gap:8px;align-items:baseline;cursor:pointer}
+.missions li b{font-family:var(--f-disp);font-weight:400;color:var(--gold);font-size:12px}
+.missions li:hover{border-color:var(--storm)}
+
+/* talk */
+.talk{background:linear-gradient(140deg,var(--panel2),var(--panel));border:1px solid var(--storm);border-radius:18px;padding:22px 20px;display:flex;flex-direction:column;gap:14px}
+.talk-q{font-family:var(--f-disp);font-size:clamp(24px,5.5vw,34px);line-height:1.15;margin:0;text-wrap:balance;min-height:2.3em}
+.talk-q.pop{animation:pop .3s ease}
+@keyframes pop{from{transform:scale(.96);opacity:.3}to{transform:none;opacity:1}}
+.talk-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.talk-n{color:var(--mute);font-size:13px;font-variant-numeric:tabular-nums}
+
+/* buttons */
+.btn{font:600 15px var(--f-body);border:0;border-radius:10px;padding:10px 16px;cursor:pointer;background:var(--storm);color:#fff}
+.btn:hover{filter:brightness(1.1)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--mute)}
+.btn.gold{background:var(--gold);color:#1b1500}
+
+/* exercises */
+.ex{display:flex;flex-direction:column;gap:12px}
+.lines{margin:0;padding-left:1.4em;display:flex;flex-direction:column;gap:12px;line-height:2}
+.lines li::marker{color:var(--mute);font-variant-numeric:tabular-nums}
+.gap{font:600 16px var(--f-body);color:var(--cyan);background:var(--panel2);border:0;border-bottom:2px solid var(--line);border-radius:6px 6px 0 0;padding:2px 6px;margin:0 3px;max-width:100%}
+select.gap{padding:4px 6px;cursor:pointer}
+.gap.ok{border-color:var(--ok);color:var(--ok)}
+.gap.bad{border-color:var(--bad);color:var(--bad);animation:shake .3s}
+.gap.shown{border-color:var(--gold);color:var(--gold)}
+@keyframes shake{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+.exbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.score{font:600 14px var(--f-body);color:var(--mute);font-variant-numeric:tabular-nums}
+.score[data-state="all"]{color:var(--ok)}
+.hint{display:block;font-size:13px;color:var(--mute);line-height:1.4}
+.bug{font-family:ui-monospace,Menlo,monospace;font-size:15px;background:#0a0818;border:1px solid var(--line);border-radius:10px;padding:14px;line-height:1.7;overflow-x:auto}
+.bug mark{background:rgba(255,93,125,.18);color:var(--bad);border-bottom:2px wavy var(--bad);padding:0 2px}
+
+/* story */
+.story p{font-size:18px;line-height:1.75;max-width:62ch}
+.w{border-bottom:1px dashed var(--mute);cursor:help}
+html.ru .w::after{content:" (" attr(data-ru) ")";font-size:.72em;color:var(--gold)}
+.ru{display:none}
+html.ru .ru{display:block}
+.coach{display:none;border:1px dashed var(--gold);border-radius:12px;padding:10px 14px;font-size:14px;color:#ffe3a3;background:rgba(255,200,61,.06)}
+html.teach .coach{display:block}
+.coach b{font-family:var(--f-disp);font-weight:400;letter-spacing:.05em;color:var(--gold);margin-right:6px}
+
+/* callouts table */
+.calls{display:grid;gap:8px}
+.call{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:center;background:var(--panel2);border-radius:10px;padding:10px 12px}
+.call strong{font-size:16px}
+.call select{width:100%}
+@media (max-width:520px){.call{grid-template-columns:1fr}}
+
+/* AI lab */
+.lab-grid{display:grid;gap:18px}
+textarea,.txt{width:100%;font:16px/1.5 var(--f-body);color:var(--fg);background:#0a0818;border:1px solid var(--line);border-radius:10px;padding:12px;resize:vertical}
+.txt{resize:none}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.thinking{color:var(--cyan);font-weight:600;margin:0;animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.45}}
+.tier{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-disp);font-size:20px;padding:8px 14px;border-radius:10px;border:2px solid currentColor;text-transform:uppercase;letter-spacing:.05em}
+.tier[data-t="common"]{color:var(--t-common)} .tier[data-t="rare"]{color:var(--t-rare)} .tier[data-t="epic"]{color:var(--t-epic)} .tier[data-t="legendary"]{color:var(--t-legend);box-shadow:0 0 22px rgba(255,178,31,.35)}
+.res{display:flex;flex-direction:column;gap:12px;margin-top:14px}
+.fixed{font-size:17px;background:rgba(63,224,139,.08);border-left:3px solid var(--ok);padding:10px 12px;border-radius:0 8px 8px 0}
+.fix{display:grid;gap:2px;padding:10px 12px;background:var(--panel2);border-radius:10px}
+.fix s{color:var(--bad)} .fix ins{text-decoration:none;color:var(--ok);font-weight:600}
+.fix small{color:var(--mute);font-size:13px}
+.bonus{background:rgba(255,200,61,.08);border:1px solid rgba(255,200,61,.4);border-radius:10px;padding:10px 12px}
+.bonus b{color:var(--gold)}
+label.lbl{font-size:13px;color:var(--mute);display:block;margin-bottom:6px}
+select.pick{font:500 15px var(--f-body);color:var(--fg);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;max-width:100%}
+
+/* loot */
+.loot{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+.loot li{display:flex;gap:14px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+.loot .gem{flex:0 0 auto;width:38px;height:38px;border-radius:9px;display:grid;place-items:center;font-family:var(--f-disp);font-size:13px;color:#140f00}
+
+/* pager */
+.pager{position:fixed;left:0;right:0;bottom:0;z-index:5;background:rgba(18,15,44,.95);border-top:1px solid var(--line);backdrop-filter:blur(8px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.pager .inner{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-block:10px}
+.pg{display:flex;align-items:center;gap:8px;background:transparent;border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:8px 12px;font:600 14px var(--f-body);cursor:pointer;min-width:0;max-width:42%}
+.pg span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pg:disabled{opacity:.3;cursor:default}
+.pg.next{background:var(--storm);border-color:var(--storm)}
+#pos{color:var(--mute);font-size:13px;font-variant-numeric:tabular-nums}
+</style>
+<style>a.btn{text-decoration:none;display:inline-block}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style></head><body><header class="hud wrap">
+  <div class="inner">
+    <div class="hud-row">
+      <div class="brand">MISHA <b>//</b> HOMEWORK 01</div>
+      <span class="chip" id="aichip">AI…</span>
+      <button class="tog" type="button" data-toggle="ru" aria-pressed="false" title="Русские подсказки">RU</button>
+    </div>
+    <div class="hud-row">
+      <div class="xp" aria-label="Homework XP"><span>XP</span><div class="bar" id="xpbar"><i></i></div><span><strong id="xpnum">0</strong> / <span id="xpmax">0</span></span></div>
+    </div>
+    <nav class="tabs" id="tabs" aria-label="Missions"></nav>
+  </div>
+</header>
+
+<main class="wrap"><div class="inner">
+
+<section class="sec" data-title="Start">
+  <div class="stack">
+    <div class="hero">
+      <p class="kicker">Homework · after lesson 01</p>
+      <h1>LOOT <span>RUN</span></h1>
+      <p class="lead">Шесть миссий, минут 20. Можно делать по одной в день. Всё, что ты сделал, сохраняется на этом телефоне или компе. В конце нажмёшь одну кнопку и отправишь результат Артёму.</p>
+      <ul class="missions">
+        <li data-go="1"><b>01</b> Past tense</li>
+        <li data-go="2"><b>02</b> Bug hunt</li>
+        <li data-go="3"><b>03</b> Callouts</li>
+        <li data-go="4"><b>04</b> Your replay</li>
+        <li data-go="5"><b>05</b> Birthday</li>
+        <li data-go="6"><b>06</b> Voice + song</li>
+      </ul>
+    </div>
+    <div class="card"><h3>Правила</h3><p class="note">Сначала пробуй без подсказок. Кнопка RU показывает русские подсказки. Ошибки — это нормально, за каждый правильный ответ +10 XP.</p></div>
+  </div>
+</section>
+
+<section class="sec" data-title="Past tense" hidden>
+  <div class="stack">
+    <div><p class="kicker">Mission 01</p><h2>Weekend replay</h2><p class="lead">Поставь глагол в прошедшее время. Помни: find → found, win → won.</p></div>
+    <div class="card ex" data-m="Past tense">
+      <ol class="lines">
+        <li>On Saturday I <input class="gap" data-a="played" aria-label="gap"> Brawl Stars for two hours. <span class="hint">play</span></li>
+        <li>My team <input class="gap" data-a="won" aria-label="gap"> three games. <span class="hint">win</span></li>
+        <li>I <input class="gap" data-a="got" aria-label="gap"> a new brawler. <span class="hint">get</span></li>
+        <li>Then I <input class="gap" data-a="watched" aria-label="gap"> a Harry Potter movie. <span class="hint">watch</span></li>
+        <li>Harry <input class="gap" data-a="flew" aria-label="gap"> on a broom. <span class="hint">fly</span></li>
+        <li>We <input class="gap" data-a="ate" aria-label="gap"> pizza for dinner. <span class="hint">eat</span></li>
+        <li>My dad <input class="gap" data-a="bought" aria-label="gap"> a new car. <span class="hint">buy</span></li>
+        <li>It <input class="gap" data-a="was" aria-label="gap"> really fast! <span class="hint">be</span></li>
+        <li>I <input class="gap" data-a="didn't do|did not do" aria-label="gap"> my homework on Saturday. <span class="hint">not / do</span></li>
+        <li>I <input class="gap" data-a="did" aria-label="gap"> it on Sunday. <span class="hint">do</span></li>
+      </ol>
+      <p class="ru note">Неправильные: win → won, get → got, fly → flew, eat → ate, buy → bought, do → did, be → was / were.</p>
+      <div class="exbar"><button class="btn check" type="button">Проверить</button><button class="btn ghost reveal" type="button">Показать ответы</button><span class="score" aria-live="polite"></span></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" data-title="Bug hunt" hidden>
+  <div class="stack">
+    <div><p class="kicker">Mission 02</p><h2>Bug hunt</h2><p class="lead">В каждой паре одно предложение с багом. Выбери правильное.</p></div>
+    <div class="card ex" data-m="Bug hunt">
+      <ol class="lines">
+        <li><select class="gap" data-a="I am 13 years old." aria-label="choose"><option value=""></option><option>I have 13 years.</option><option>I am 13 years old.</option></select></li>
+        <li><select class="gap" data-a="I like playing Fortnite." aria-label="choose"><option value=""></option><option>I like playing Fortnite.</option><option>I like playing with Fortnite.</option></select></li>
+        <li><select class="gap" data-a="I play with my friends." aria-label="choose"><option value=""></option><option>I play my friends.</option><option>I play with my friends.</option></select></li>
+        <li><select class="gap" data-a="Yesterday I played badminton." aria-label="choose"><option value=""></option><option>Yesterday I played badminton.</option><option>Yesterday I play badminton.</option></select></li>
+        <li><select class="gap" data-a="My name is Misha." aria-label="choose"><option value=""></option><option>My name Misha.</option><option>My name is Misha.</option></select></li>
+        <li><select class="gap" data-a="He has a new phone." aria-label="choose"><option value=""></option><option>He has a new phone.</option><option>He is a new phone.</option></select></li>
+      </ol>
+      <p class="ru note">Возраст через am: I am 13. С игрой без with: play Fortnite. С людьми with: play with friends.</p>
+      <div class="exbar"><button class="btn check" type="button">Проверить</button><button class="btn ghost reveal" type="button">Показать ответы</button><span class="score" aria-live="polite"></span></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" data-title="Callouts" hidden>
+  <div class="stack">
+    <div><p class="kicker">Mission 03</p><h2>Callouts</h2><p class="lead">Что ты крикнешь в войс-чат? Впиши слово.</p></div>
+    <div class="card ex" data-m="Callouts">
+      <ol class="lines">
+        <li>Your HP is almost zero: "I'm <input class="gap" data-a="low" aria-label="gap">!"</li>
+        <li>You need your friend to protect you: "<input class="gap" data-a="cover" aria-label="gap"> me!"</li>
+        <li>An enemy is on the left: "Enemy on the <input class="gap" data-a="left" aria-label="gap">!"</li>
+        <li>You are down: "<input class="gap" data-a="revive" aria-label="gap"> me!"</li>
+        <li>Your team won: "<input class="gap" data-a="GG" aria-label="gap">, well played!"</li>
+        <li>You want to attack now: "<input class="gap" data-a="push" aria-label="gap"> them!"</li>
+        <li>Danger behind your friend: "Watch <input class="gap" data-a="out" aria-label="gap">!"</li>
+        <li>You need more protection: "I need <input class="gap" data-a="shields|shield" aria-label="gap">."</li>
+      </ol>
+      <div class="exbar"><button class="btn check" type="button">Проверить</button><button class="btn ghost reveal" type="button">Показать ответы</button><span class="score" aria-live="polite"></span></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" data-title="Your replay" hidden>
+  <div class="stack">
+    <div><p class="kicker">Mission 04 · AI</p><h2>Your replay</h2><p class="lead">Напиши 3–4 предложения про свою последнюю катку. Используй прошедшее время. Потом AI-тренер оценит твой текст.</p></div>
+    <div class="card">
+      <label class="lbl" for="hw-replay">Last match</label>
+      <textarea id="hw-replay" class="keep" rows="5" placeholder="Yesterday I played…"></textarea>
+      <div class="row" style="margin-top:10px"><button class="btn gold" id="rp-go" type="button" data-thinking="AI-тренер смотрит твой реплей…">Rate it</button><button class="btn ghost" id="rp-stop" type="button" hidden>Stop</button></div>
+      <div id="rp-out" aria-live="polite"></div>
+    </div>
+    <div class="card"><p class="note">Слова в помощь: dropped, landed, found, built, heard, fought, won, lost, revived, was / were.</p></div>
+  </div>
+</section>
+
+<section class="sec" data-title="Birthday" hidden>
+  <div class="stack">
+    <div><p class="kicker">Mission 05 · AI</p><h2>Birthday plans</h2><p class="lead">2–3 предложения: что ты собираешься делать в день рождения? Используй <b>going to</b>.</p></div>
+    <div class="card">
+      <label class="lbl" for="hw-bday">My birthday</label>
+      <textarea id="hw-bday" class="keep" rows="4" placeholder="My birthday is in… I'm going to…"></textarea>
+      <div class="row" style="margin-top:10px"><button class="btn gold" id="bd-go" type="button" data-thinking="AI-тренер читает…">Check it</button><button class="btn ghost" id="bd-stop" type="button" hidden>Stop</button></div>
+      <div id="bd-out" aria-live="polite"></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" data-title="Voice + song" hidden>
+  <div class="stack">
+    <div><p class="kicker">Mission 06</p><h2>Voice + song</h2></div>
+    <div class="card">
+      <h3>Голосовое Артёму</h3>
+      <p class="note">Прочитай вслух свой текст из миссии 04 (лучше исправленную версию) и отправь голосовым в Telegram.</p>
+      <div class="row" style="margin-top:12px"><a class="btn" href="https://t.me/rawmeatsalad" target="_blank" rel="noopener">Открыть Telegram</a><span class="note">@rawmeatsalad</span></div>
+      <label class="row" style="margin-top:14px;gap:8px;font-size:15px"><input type="checkbox" id="hw-voice" class="keep"> Отправил голосовое</label>
+    </div>
+    <div class="card">
+      <h3>Song words</h3>
+      <p class="note">Включи песню на английском, которая тебе нравится. Напиши название и 3 слова, которые услышал.</p>
+      <div class="lab-grid" style="margin-top:12px;gap:10px">
+        <input class="txt keep" id="hw-song" placeholder="Song name">
+        <input class="txt keep" id="hw-w1" placeholder="Word 1">
+        <input class="txt keep" id="hw-w2" placeholder="Word 2">
+        <input class="txt keep" id="hw-w3" placeholder="Word 3">
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" data-title="Finish" hidden>
+  <div class="stack">
+    <div><p class="kicker">Mission complete</p><h2>Send your loot</h2><p class="lead">Скопируй отчёт и отправь Артёму в Telegram одним сообщением.</p></div>
+    <div class="card"><pre id="report" style="white-space:pre-wrap;margin:0;font:15px/1.55 ui-monospace,Menlo,monospace;color:var(--fg)"></pre></div>
+    <div class="row"><button class="btn gold" id="copy" type="button">Скопировать отчёт</button><a class="btn" href="https://t.me/rawmeatsalad" target="_blank" rel="noopener">Открыть Telegram</a><span class="note" id="copied" aria-live="polite"></span></div>
+  </div>
+</section>
+
+</div></main>
+
+<nav class="pager wrap" aria-label="Pager"><div class="inner">
+  <button class="pg" id="prev" type="button">← <span id="prev-l"></span></button>
+  <span id="pos"></span>
+  <button class="pg next" id="next" type="button"><span id="next-l"></span> →</button>
+</div></nav>
+<script>window.LESSON={api:true,key:'misha-hw1-',copy:{aiOn:'AI online',aiOff:'AI offline',check:'Проверить',reveal:'Показать ответы',thinking:'AI думает…',perfect:'🔥',err:{rate_limited:'Слишком много запросов. Подожди минутку и жми снова.',cancelled:'',default:'Связь пропала. Попробуй ещё раз.'}}};</script><script>
+(function(){
+const L=window.LESSON||{copy:{err:{}}};
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const norm=s=>String(s==null?'':s).toLowerCase().replace(/[’‘`´]/g,"'").replace(/[“”]/g,'"').replace(/\s+/g,' ').replace(/^[\s"'(]+|[\s.!?,;:"')]+$/g,'').trim();
+const store={get(k){try{return localStorage.getItem(L.key+k)}catch(e){return null}},set(k,v){try{localStorage.setItem(L.key+k,v)}catch(e){}}};
+
+/* ---------- sections ---------- */
+const secs=$$('.sec'), tabs=$('#tabs'); let cur=0;
+secs.forEach((s,i)=>{
+  const b=document.createElement('button'); b.type='button'; b.className='tab';
+  if(s.dataset.phase) b.dataset.phase=s.dataset.phase;
+  const n=document.createElement('span'); n.className='tab-n'; n.textContent=s.dataset.phase||String(i+1).padStart(2,'0');
+  const t=document.createElement('span'); t.className='tab-t'; t.textContent=s.dataset.title;
+  b.append(n,t); b.addEventListener('click',()=>go(i)); tabs.appendChild(b);
+});
+function go(i){
+  i=Math.max(0,Math.min(secs.length-1,i)); const dir=i>=cur?1:-1;
+  secs.forEach((s,k)=>{s.hidden=k!==i});
+  const s=secs[i]; s.style.setProperty('--dir',dir); s.classList.remove('enter'); void s.offsetWidth; s.classList.add('enter');
+  $$('.tab',tabs).forEach((t,k)=>t.setAttribute('aria-current',k===i?'true':'false'));
+  cur=i; $('#prev').disabled=i===0; $('#next').disabled=i===secs.length-1;
+  $('#pos').textContent=(i+1)+' / '+secs.length;
+  $('#prev-l').textContent=i>0?secs[i-1].dataset.title:'';
+  $('#next-l').textContent=i<secs.length-1?secs[i+1].dataset.title:'';
+  const t=$$('.tab',tabs)[i]; tabs.scrollTo({left:t.offsetLeft-tabs.clientWidth/2+t.clientWidth/2,behavior:'smooth'});
+  window.scrollTo({top:0});
+}
+$('#prev').addEventListener('click',()=>go(cur-1));
+$('#next').addEventListener('click',()=>go(cur+1));
+document.addEventListener('keydown',e=>{
+  if(e.target.closest('input,textarea,select'))return;
+  if(e.key==='ArrowRight')go(cur+1); if(e.key==='ArrowLeft')go(cur-1);
+});
+let tx=null,ty=null;
+document.addEventListener('touchstart',e=>{if(e.target.closest('input,textarea,select,.tabs,.chat'))return;tx=e.touches[0].clientX;ty=e.touches[0].clientY},{passive:true});
+document.addEventListener('touchend',e=>{if(tx===null)return;const dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;tx=null;if(Math.abs(dx)>80&&Math.abs(dy)<50)go(cur+(dx<0?1:-1));},{passive:true});
+document.addEventListener('click',e=>{const g=e.target.closest('[data-go]');if(g)go(+g.dataset.go);});
+
+/* ---------- gaps ---------- */
+function sizeGap(g){if(g.tagName!=='INPUT')return;const m=Math.max(3,...g.dataset.a.split('|').map(a=>a.length));g.style.width='calc('+(m+2)+'ch + 14px)';}
+function prepGaps(root){$$('input.gap',root).forEach(g=>{sizeGap(g);g.autocomplete='off';g.spellcheck=false;g.setAttribute('autocapitalize','off');g.setAttribute('autocorrect','off');});}
+let xp=0;
+function paintXP(){
+  const max=$$('.gap').length*10; const bar=$('#xpbar'); if(!bar)return;
+  const p=max?Math.min(100,xp/max*100):0; bar.style.setProperty('--p',p+'%');
+  $('#xpnum').textContent=xp; $('#xpmax').textContent=max;
+  if(L.onXP)L.onXP(xp,max);
+}
+function award(g){if(g.dataset.done||g.classList.contains('shown'))return;g.dataset.done='1';xp+=10;paintXP();}
+function checkEx(ex){
+  let ok=0,all=0;
+  $$('.gap',ex).forEach(g=>{
+    all++; const v=g.value;
+    const good=v!==''&&g.dataset.a.split('|').some(a=>norm(a)===norm(v));
+    g.classList.toggle('ok',good); g.classList.toggle('bad',!good&&v!=='');
+    if(good){ok++;award(g);}
+  });
+  const sc=$('.score',ex);
+  if(sc){sc.textContent=ok+' / '+all+(ok===all?' '+(L.copy.perfect||''):'');sc.dataset.state=ok===all?'all':ok?'some':'none';}
+}
+function revealEx(ex){
+  $$('.gap',ex).forEach(g=>{
+    if(g.classList.contains('ok'))return;
+    g.value=g.dataset.a.split('|')[0]; g.classList.remove('bad'); g.classList.add('shown');
+  });
+}
+document.addEventListener('click',e=>{
+  const c=e.target.closest('.check'); if(c)checkEx(c.closest('.ex'));
+  const r=e.target.closest('.reveal'); if(r)revealEx(r.closest('.ex'));
+});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches('input.gap')){e.preventDefault();checkEx(e.target.closest('.ex'));}});
+document.addEventListener('input',e=>{if(e.target.matches('.gap')){e.target.classList.remove('ok','bad','shown');}});
+
+/* ---------- talk cards ---------- */
+$$('.talk').forEach(t=>{
+  let qs=[]; try{qs=JSON.parse(t.dataset.q)}catch(e){}
+  let bag=[]; const q=$('.talk-q',t), n=$('.talk-n',t);
+  const next=()=>{
+    if(!qs.length)return;
+    if(!bag.length)bag=qs.map((_,i)=>i).sort(()=>Math.random()-.5);
+    q.textContent=qs[bag.pop()];
+    q.classList.remove('pop'); void q.offsetWidth; q.classList.add('pop');
+    if(n)n.textContent=(qs.length-bag.length)+' / '+qs.length;
+  };
+  $('.talk-next',t).addEventListener('click',next); next();
+});
+
+/* ---------- toggles ---------- */
+$$('[data-toggle]').forEach(b=>{
+  const cls=b.dataset.toggle;
+  if(store.get(cls)==='1'){document.documentElement.classList.add(cls);b.setAttribute('aria-pressed','true');}
+  b.addEventListener('click',()=>{const on=document.documentElement.classList.toggle(cls);b.setAttribute('aria-pressed',String(on));store.set(cls,on?'1':'');});
+});
+
+/* ---------- AI ---------- */
+let sp=null;
+function getSample(){
+  if(!sp) sp=L.api?Promise.resolve(true):(window.claude&&typeof window.claude.use==='function')?window.claude.use('sample').catch(()=>null):Promise.resolve(null);
+  return sp;
+}
+getSample().then(s=>{const chip=$('#aichip');if(chip){chip.dataset.state=s?'on':'off';chip.textContent=s?L.copy.aiOn:L.copy.aiOff;}});
+function errText(e){const c=e&&e.code;if(c==='server'&&e.message)return e.message;return (L.copy.err&&L.copy.err[c])||L.copy.err.default;}
+async function ai(input,opt){
+  opt=opt||{}; const s=await getSample(); if(!s)throw{code:'unavailable'};
+  const o={modelTier:opt.tier||'default',cache:false};
+  if(opt.signal)o.signal=opt.signal; if(opt.onText)o.onText=opt.onText;
+  return opt.json?s.json(input,o):s(input,o);
+}
+function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
+function renderDrill(box,items){
+  box.textContent='';
+  const ex=el('div','ex drill'); const ol=el('ol','lines'); let count=0;
+  (Array.isArray(items)?items:[]).slice(0,8).forEach(it=>{
+    const s=String((it&&it.s)||''), a=String((it&&it.a)||'').trim();
+    if(!s.includes('___')||!a)return;
+    const li=el('li'); const parts=s.split('___');
+    li.append(parts[0]); const g=el('input','gap'); g.dataset.a=a; g.setAttribute('aria-label','gap'); li.append(g); li.append(parts.slice(1).join('___'));
+    if(it.ru){li.append(el('span','hint',String(it.ru)));}
+    ol.append(li); count++;
+  });
+  if(!count){box.append(el('p','note',L.copy.err.invalid_json));return;}
+  ex.append(ol);
+  const bar=el('div','exbar');
+  const c=el('button','btn check',L.copy.check); c.type='button';
+  const r=el('button','btn ghost reveal',L.copy.reveal); r.type='button';
+  const sc=el('span','score'); sc.setAttribute('aria-live','polite');
+  bar.append(c,r,sc); ex.append(bar); box.append(ex);
+  prepGaps(ex); paintXP();
+}
+/* run an AI button with thinking state + stop */
+function wire(btn,stop,out,run){
+  let ctl=null;
+  if(stop)stop.addEventListener('click',()=>{if(ctl)ctl.abort();});
+  btn.addEventListener('click',async()=>{
+    ctl=new AbortController(); btn.disabled=true; if(stop)stop.hidden=false;
+    out.textContent=''; const th=el('p','thinking',btn.dataset.thinking||L.copy.thinking); out.append(th);
+    try{ await run(ctl.signal,out); }
+    catch(e){ if(!e||e.code!=='cancelled'){out.textContent='';out.append(el('p','note',errText(e)));} else {out.textContent='';} }
+    finally{ btn.disabled=false; if(stop)stop.hidden=true; }
+  });
+}
+
+window.LessonAI={ai,errText,getSample,prepGaps,paintXP,checkEx,renderDrill,wire,el,$,$$,go};
+prepGaps(document); paintXP(); go(0);
+})();
+
+</script><script>
+(function(){
+const {wire,el,renderDrill,$}=window.LessonAI;
+
+async function api(kind,payload,signal){
+  let res;
+  try{res=await fetch('/api/lesson',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({kind},payload)),signal});}
+  catch(e){if(e&&e.name==='AbortError')throw{code:'cancelled'};throw{code:'upstream_error'};}
+  let j=null; try{j=await res.json();}catch(e){}
+  if(res.status===429)throw{code:'rate_limited'};
+  if(!res.ok)throw{code:'server',message:(j&&j.message)||''};
+  return j&&j.data;
+}
+window.MishaAPI=api;
+
+function renderCoach(out,r){
+  out.textContent='';
+  const res=el('div','res');
+  const tierName=['common','rare','epic','legendary'].includes(r&&r.tier)?r.tier:'rare';
+  const tier=el('div','tier',tierName+' · +'+(Number(r&&r.xp)||0)+' xp'); tier.dataset.t=tierName;
+  res.append(tier);
+  if(r&&r.hype)res.append(el('p','',String(r.hype)));
+  if(r&&r.fixed){res.append(el('h3','','Fixed version'));res.append(el('div','fixed',String(r.fixed)));}
+  (Array.isArray(r&&r.fixes)?r.fixes:[]).slice(0,4).forEach(f=>{
+    const d=el('div','fix'); const line=el('div');
+    line.append(el('s','',String(f.wrong||'')),' → ',el('ins','',String(f.right||'')));
+    d.append(line); if(f.ru)d.append(el('small','',String(f.ru))); res.append(d);
+  });
+  if(r&&r.bonus&&r.bonus.en){const b=el('div','bonus');b.append(el('b','','Bonus phrase: '),String(r.bonus.en));if(r.bonus.ru)b.append(el('div','hint',String(r.bonus.ru)));res.append(b);}
+  out.append(res);
+}
+window.MishaRenderCoach=renderCoach;
+
+if($('#coach-go')) wire($('#coach-go'),$('#coach-stop'),$('#coach-out'),async(signal,out)=>{
+  const t=$('#coach-in').value.trim();
+  if(t.length<8){out.textContent='';out.append(el('p','note','Напиши хотя бы два предложения 🙂'));return;}
+  renderCoach(out,await api('misha-coach',{text:t},signal));
+});
+
+if($('#tr-go')) wire($('#tr-go'),$('#tr-stop'),$('#tr-out'),async(signal,out)=>{
+  const t=$('#tr-in').value.trim(); if(!t){out.textContent='';return;}
+  const r=await api('misha-translate',{text:t},signal);
+  out.textContent=''; const res=el('div','res');
+  if(r&&r.en)res.append(el('div','fixed',String(r.en)));
+  if(r&&r.simple){const b=el('div','bonus');b.append(el('b','','Simple: '),String(r.simple));res.append(b);}
+  (Array.isArray(r&&r.words)?r.words:[]).slice(0,3).forEach(w=>{const d=el('div','fix');d.append(el('ins','',String(w.en||'')));d.append(el('small','',String(w.ru||'')));res.append(d);});
+  out.append(res);
+});
+
+if($('#dr-go')) wire($('#dr-go'),$('#dr-stop'),$('#dr-out'),async(signal,out)=>{
+  renderDrill(out,await api('misha-drill',{topic:$('#dr-topic').value,focus:$('#dr-focus').value},signal));
+});
+})();
+
+</script><script>
+(function(){
+const {wire,el,$,$$,checkEx}=window.LessonAI;
+const api=window.MishaAPI, renderCoach=window.MishaRenderCoach;
+const KEY='misha-hw1-';
+const store={get(k){try{return JSON.parse(localStorage.getItem(KEY+k)||'null')}catch(e){return null}},set(k,v){try{localStorage.setItem(KEY+k,JSON.stringify(v))}catch(e){}}};
+const exs=$$('.ex');
+const ai=store.get('ai')||{};
+
+/* save exercise state */
+function saveEx(){
+  store.set('ex',exs.map(ex=>({checked:ex.dataset.checked==='1',gaps:$$('.gap',ex).map(g=>({v:g.value,shown:g.classList.contains('shown')}))})));
+  paintReport();
+}
+document.addEventListener('click',e=>{
+  const c=e.target.closest('.check'),r=e.target.closest('.reveal');
+  if(c||r){const ex=(c||r).closest('.ex');if(c)ex.dataset.checked='1';setTimeout(saveEx,0);}
+});
+document.addEventListener('input',e=>{if(e.target.matches('.gap'))saveEx();});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches('input.gap')){e.target.closest('.ex').dataset.checked='1';setTimeout(saveEx,0);}});
+
+/* restore */
+(store.get('ex')||[]).forEach((s,i)=>{
+  const ex=exs[i]; if(!ex||!s)return; const gs=$$('.gap',ex);
+  (s.gaps||[]).forEach((g,k)=>{if(gs[k]){gs[k].value=g.v||'';if(g.shown)gs[k].classList.add('shown');}});
+  if(s.checked){ex.dataset.checked='1';checkEx(ex);}
+});
+
+/* free text fields */
+$$('.keep').forEach(f=>{
+  const v=store.get('f:'+f.id);
+  if(f.type==='checkbox')f.checked=!!v;else if(v)f.value=v;
+  f.addEventListener(f.type==='checkbox'?'change':'input',()=>{store.set('f:'+f.id,f.type==='checkbox'?f.checked:f.value);paintReport();});
+});
+
+/* AI coach for two missions */
+function coach(btn,stop,out,field,slot){
+  wire($(btn),$(stop),$(out),async(signal,o)=>{
+    const t=$(field).value.trim();
+    if(t.length<8){o.textContent='';o.append(el('p','note','Напиши хотя бы два предложения 🙂'));return;}
+    const r=await api('misha-coach',{text:t},signal);
+    renderCoach(o,r);
+    ai[slot]={tier:String((r&&r.tier)||''),xp:Number(r&&r.xp)||0,fixed:String((r&&r.fixed)||'')};
+    store.set('ai',ai); paintReport();
+  });
+}
+coach('#rp-go','#rp-stop','#rp-out','#hw-replay','replay');
+coach('#bd-go','#bd-stop','#bd-out','#hw-bday','bday');
+
+/* report */
+function score(ex){const gs=$$('.gap',ex);const ok=gs.filter(g=>g.classList.contains('ok')).length;const shown=gs.filter(g=>g.classList.contains('shown')).length;return ok+'/'+gs.length+(shown?' (подсмотрел: '+shown+')':'')+(ex.dataset.checked==='1'?'':' — не проверено');}
+function paintReport(){
+  const v=id=>($('#'+id).value||'').trim();
+  const lines=['📋 Домашка 01 · Misha',
+    'XP: '+$('#xpnum').textContent+' / '+$('#xpmax').textContent,''];
+  exs.forEach(ex=>lines.push(ex.dataset.m+': '+score(ex)));
+  lines.push('');
+  lines.push('Replay: '+(v('hw-replay')||'—'));
+  if(ai.replay)lines.push('AI-тренер: '+ai.replay.tier.toUpperCase()+' +'+ai.replay.xp+' xp');
+  lines.push('');
+  lines.push('Birthday: '+(v('hw-bday')||'—'));
+  if(ai.bday)lines.push('AI-тренер: '+ai.bday.tier.toUpperCase()+' +'+ai.bday.xp+' xp');
+  lines.push('');
+  lines.push('Голосовое: '+($('#hw-voice').checked?'отправил ✅':'ещё нет'));
+  const words=[v('hw-w1'),v('hw-w2'),v('hw-w3')].filter(Boolean).join(', ');
+  lines.push('Песня: '+(v('hw-song')||'—')+(words?' · слова: '+words:''));
+  $('#report').textContent=lines.join('\n');
+}
+paintReport();
+new MutationObserver(paintReport).observe($('#xpnum'),{childList:true});
+
+$('#copy').addEventListener('click',async()=>{
+  paintReport(); const text=$('#report').textContent;
+  try{await navigator.clipboard.writeText(text);$('#copied').textContent='Скопировано. Теперь вставь в Telegram.';}
+  catch(e){const r=document.createRange();r.selectNodeContents($('#report'));const s=getSelection();s.removeAllRanges();s.addRange(r);$('#copied').textContent='Текст выделен: скопируй его вручную.';}
+});
+})();
+
+</script></body></html>

@@ -7,6 +7,8 @@ const nextConfig = {
       { source: "/.well-known/assetlinks.json", destination: "/api/assetlinks" },
       { source: "/anketa", destination: "/anketa.html" },
       { source: "/welcome", destination: "/welcome.html" },
+      { source: "/misha", destination: "/misha.html" },
+      { source: "/misha/homework", destination: "/misha-homework.html" },
     ];
   },
   async headers() {
