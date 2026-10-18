@@ -6,6 +6,7 @@ const nextConfig = {
     return [
       { source: "/.well-known/assetlinks.json", destination: "/api/assetlinks" },
       { source: "/anketa", destination: "/anketa.html" },
+      { source: "/welcome", destination: "/welcome.html" },
     ];
   },
   async headers() {
