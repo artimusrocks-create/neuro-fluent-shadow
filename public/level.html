@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta property="og:title" content="Тест уровня английского — Артём, Neuro-Fluent">
+<meta property="og:description" content="20 минут: уровень, цели и интересы. Грамматика, чтение, живая речь и короткое письмо">
+<meta property="og:image" content="/og.png">
+<title>Тест уровня английского</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,500;7..72,600&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a calm intake form — one section per screen on a quiet page, progress as a thin rule. */
+:root{
+  --bg:#f3f5f4; --card:#ffffff; --ink:#18403a; --text:#1d2524; --muted:#5b6866; --line:#d7dfdc;
+  --soft:#e8efec; --sel:#18403a; --sel-ink:#ffffff; --accent:#c9a227; --warn:#b4472f; --ok:#2c7a5a;
+  --display:"Literata", Georgia, serif; --body:"Golos Text","Segoe UI",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101716; --card:#172120; --ink:#9fd3c4; --text:#e6eeec; --muted:#9aaba7; --line:#2a3836;
+  --soft:#1f2c2a; --sel:#9fd3c4; --sel-ink:#0f1716; --accent:#e2c15a; --warn:#ff8a70; --ok:#6fd0a3; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101716; --card:#172120; --ink:#9fd3c4; --text:#e6eeec; --muted:#9aaba7; --line:#2a3836;
+  --soft:#1f2c2a; --sel:#9fd3c4; --sel-ink:#0f1716; --accent:#e2c15a; --warn:#ff8a70; --ok:#6fd0a3; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:auto}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--body);font-size:17px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 48px}
+.wrap{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.top{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.bar{height:3px;background:var(--line);border-radius:2px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--ink);width:0;transition:width .35s ease}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:32px 28px;display:flex;flex-direction:column;gap:22px}
+h1,h2{font-family:var(--display);color:var(--ink);margin:0;line-height:1.2;text-wrap:balance;font-weight:600}
+h1{font-size:clamp(28px,6vw,38px)} h2{font-size:clamp(22px,4.8vw,28px)}
+p{margin:0} .lead{color:var(--muted)}
+.field{display:flex;flex-direction:column;gap:8px}
+.field>label,.q{font-weight:600}
+.hint{font-size:14px;color:var(--muted)}
+input[type=text],textarea{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px 14px;width:100%}
+textarea{min-height:120px;resize:vertical}
+input:focus,textarea:focus{outline:2px solid var(--ink);outline-offset:1px;border-color:transparent}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font:inherit;font-size:15px;color:var(--text);background:var(--soft);border:1px solid transparent;border-radius:999px;padding:8px 14px;cursor:pointer}
+.chip:hover{border-color:var(--line)}
+.chip[aria-pressed="true"]{background:var(--sel);color:var(--sel-ink);font-weight:600}
+.opts{display:grid;gap:8px}
+.opt{font:inherit;text-align:left;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px 16px;cursor:pointer;display:flex;gap:12px;align-items:center}
+.opt:hover{border-color:var(--ink)}
+.opt[aria-pressed="true"]{background:var(--sel);color:var(--sel-ink);border-color:var(--sel)}
+.opt .k{font-family:var(--mono);font-size:13px;color:var(--muted);min-width:16px}
+.opt[aria-pressed="true"] .k{color:var(--sel-ink)}
+.idk{border-style:dashed}
+.levels{display:grid;gap:8px}
+.levels .opt{flex-direction:column;align-items:flex-start;gap:2px}
+.levels .opt small{font-size:14px;opacity:.8}
+.cando{display:flex;flex-direction:column;gap:14px}
+.cando .row{display:flex;flex-direction:column;gap:8px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.cando .row:last-child{border-bottom:0;padding-bottom:0}
+.cando .chip{flex:1;text-align:center}
+.sentence{font-family:var(--display);font-size:clamp(18px,4.6vw,22px);background:var(--bg);border-left:3px solid var(--accent);border-radius:4px;padding:14px 16px;overflow-wrap:anywhere}
+.qnum{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.08em}
+.nav{display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.btn{font:inherit;font-weight:600;font-size:16px;border:1px solid var(--ink);border-radius:10px;padding:13px 22px;cursor:pointer;background:var(--ink);color:var(--card)}
+.btn.ghost{background:transparent;color:var(--ink)}
+.btn:focus-visible,.chip:focus-visible,.opt:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.err{color:var(--warn);font-size:14px;font-weight:600}
+.facts{display:grid;gap:10px;padding:0;margin:0;list-style:none}
+.facts li{display:grid;grid-template-columns:84px 1fr;gap:12px;align-items:baseline}
+.facts li span:first-child{font-family:var(--mono);font-size:13px;color:var(--ink);font-weight:600}
+pre.report{font-family:var(--mono);font-size:13px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px;margin:0;max-height:340px;overflow:auto;color:var(--text)}
+.toast{font-weight:600;color:var(--ok);min-height:1.5em}
+.foot{text-align:center;font-size:13px;color:var(--muted)}
+@media (max-width:420px){.card{padding:24px 18px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* Level questionnaire additions: reading passage, listening player, Shadow card. */
+.passage{font-family:var(--display);font-size:17px;line-height:1.65;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:12px}
+.passage p{margin:0}
+.rq{display:flex;flex-direction:column;gap:10px;padding-top:6px}
+.play{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.play .btn{display:inline-flex;align-items:center;gap:10px}
+.play .left{font-size:14px;color:var(--muted)}
+.tag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink);background:var(--soft);border-radius:999px;padding:4px 10px;align-self:flex-start}
+.shadow{background:var(--soft);border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+.shadow h3{margin:0;font-family:var(--display);color:var(--ink);font-size:20px}
+.shadow ul{margin:0;padding-left:20px;display:grid;gap:6px}
+.shadow a{color:var(--ink);font-weight:600}
+.sendstate{font-weight:600}
+.sendstate.ok{color:var(--ok)} .sendstate.bad{color:var(--warn)}
+details.manual summary{cursor:pointer;color:var(--muted);font-size:14px}
+details.manual[open]{display:flex;flex-direction:column;gap:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><span id="stepLabel">Начало</span><span id="stepCount"></span></div>
+  <div class="bar" aria-hidden="true"><i id="barFill"></i></div>
+  <main class="card" id="card" aria-live="polite"></main>
+  <p class="foot">Артём · Neuro-Fluent · английский для взрослых</p>
+</div>
+<script>
+(function(){
+const KEY='nf-level-v1';
+const SHADOW='/';
+let A={},step=0,hist=[];
+try{const s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s&&s.A){A=s.A;step=s.step||0;hist=s.hist||[]}}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify({A,step,hist}))}catch(e){}}
+
+// Grammar and vocabulary: 5 questions per level. A level with 0–1 right ends the test early.
+const TEST=[
+ {lvl:'A1',s:'My brother ___ a doctor.',o:['is','are','am','be'],a:0},
+ {lvl:'A1',s:'___ you like coffee?',o:['Do','Does','Are','Is'],a:0},
+ {lvl:'A1',s:'There ___ two cats in the house.',o:['is','are','am','be'],a:1},
+ {lvl:'A1',s:'I get up ___ 7 o\'clock.',o:['in','on','at','to'],a:2},
+ {lvl:'A1',s:'She ___ TV every evening.',o:['watch','watches','watching','is watch'],a:1},
+ {lvl:'A2',s:'I ___ to Istanbul last summer.',o:['go','went','have gone','was go'],a:1},
+ {lvl:'A2',s:'How ___ money do you need?',o:['many','much','lot','few'],a:1},
+ {lvl:'A2',s:'Look outside! It ___.',o:['rains','is raining','rained','rain'],a:1},
+ {lvl:'A2',s:'This laptop is ___ than my old one.',o:['more good','better','best','gooder'],a:1},
+ {lvl:'A2',s:'The meeting is cancelled, so we ___ go tomorrow.',o:["mustn't","don't have to","can't","shouldn't"],a:1},
+ {lvl:'B1',s:"I've lived in this city ___ 2022.",o:['for','since','from','during'],a:1},
+ {lvl:'B1',s:"If I ___ more free time, I'd learn to play the guitar.",o:['have','had','will have','would have'],a:1},
+ {lvl:'B1',s:"I'm looking forward ___ from you.",o:['to hear','hearing','to hearing','hear'],a:2},
+ {lvl:'B1',s:'The report ___ by Friday.',o:['must finish','must be finished','must finished','must be finish'],a:1},
+ {lvl:'B1',s:"I'm not used to ___ up so early.",o:['get','getting','got','be getting'],a:1},
+ {lvl:'B2',s:'By the time we joined the call, the meeting ___.',o:['already started','has already started','had already started','was already starting'],a:2},
+ {lvl:'B2',s:'He denied ___ the email.',o:['to send','sending','send','to have send'],a:1},
+ {lvl:'B2',s:'I wish I ___ that to her. It was a mistake.',o:["didn't say","hadn't said","wouldn't say","haven't said"],a:1},
+ {lvl:'B2',s:'We need to come up ___ a better solution.',o:['to','for','with','on'],a:2},
+ {lvl:'B2',s:'Which word means "to make pain or a problem less severe"?',o:['alleviate','aggravate','elevate','allocate'],a:0},
+ {lvl:'C1',s:'No sooner had I sat down ___ the phone rang.',o:['when','than','then','that'],a:1},
+ {lvl:'C1',s:"It's high time we ___ a decision.",o:['make','made','will make','have made'],a:1},
+ {lvl:'C1',s:'Had I known about the traffic, I ___ earlier.',o:['would leave','would have left','left','had left'],a:1},
+ {lvl:'C1',s:'"Let\'s not beat around the bush." This means…',o:["Let's say it directly","Let's go for a walk","Let's avoid the topic","Let's work harder"],a:0},
+ {lvl:'C1',s:'The new policy has been met ___ widespread criticism.',o:['by','with','from','to'],a:1}
+];
+const BANDS=['A1','A2','B1','B2','C1'];
+
+const READING={
+ title:'The four-day week that worked',
+ text:[
+  "When the small software company Brightline switched to a four-day week last year, the founders expected problems. Clients, they assumed, would complain about slower replies, and the team would simply squeeze five days of work into four and burn out.",
+  "Neither happened. After six months, the number of bugs reported by clients had actually fallen, and only one of the twenty-two employees had left. The secret, according to co-founder Maya Torres, was not the extra day off but what the team stopped doing. \"We cut meetings by half,\" she says. \"Most of them were just people reading updates out loud. Now we write those updates down, and anyone can read them in two minutes.\"",
+  "Not everyone is convinced. Some managers at larger firms argue that the model only works for small teams where everyone knows everyone. Torres admits this may be true, but points out that nobody had tested it properly before. \"We were told it was impossible,\" she says. \"It turned out it was just unfamiliar.\""
+ ],
+ q:[
+  {q:'What is the text mainly about?',o:["Why one company's four-day week went better than expected",'How a small company found new clients','Why meetings are important for small teams','Why Brightline went back to a five-day week'],a:0},
+  {q:'What happened after six months?',o:['Clients complained more','Clients reported fewer bugs','Half of the team left','The founders burned out'],a:1},
+  {q:'"Squeeze five days of work into four" means…',o:['fit the work into less time, with difficulty','cancel one day of work','share the work with another team','get paid for five days'],a:0},
+  {q:'What, according to Torres, really made the difference?',o:['The extra day off','Hiring more people','Having far fewer meetings','Working longer hours'],a:2},
+  {q:'"It turned out it was just unfamiliar." Torres means that…',o:['the idea seemed impossible only because nobody had tried it','the idea failed in the end','she did not understand the idea at first','larger firms had already tested it'],a:0}
+ ]
+};
+
+// Real clips from the Neuro-Fluent Shadow app (natural speed, same voice as in the app).
+const LISTEN=[
+ {t:'Can you hear me okay?',src:'/baked/a/975e270198dedf22.mp3'},
+ {t:'Where do I check in for this flight?',src:'/baked/a/654bbfddadca313c.mp3'},
+ {t:'Can we push this to next week?',src:'/baked/a/4663c04cbe6012cd.mp3'},
+ {t:"I've got to run, but it was nice catching up.",src:'/baked/a/474456b09134fa2b.mp3'},
+ {t:"It's been crazy busy lately, to be honest.",src:'/baked/a/ecdc3492a11f84cf.mp3'},
+ {t:"I mean, it's not a big deal, you know?",src:'/baked/a/7c633247b5d787ae.mp3'}
+];
+const MAXPLAYS=3;
+
+const CANDO=[
+ 'Представиться и рассказать о себе и своей работе',
+ 'Поддержать small talk с иностранцем',
+ 'Заказать еду, снять жильё, решить вопрос в поездке',
+ 'Участвовать в созвоне или встрече на английском',
+ 'Понять сериал или YouTube без субтитров',
+ 'Прочитать статью или документацию',
+ 'Написать письмо или сообщение без переводчика',
+ 'Пройти собеседование на английском'
+];
+
+const S=[];
+S.push({label:'Начало',render:intro});
+S.push({label:'О вас',fields:[
+ {id:'name',type:'text',q:'Как вас зовут?',req:'Пожалуйста, укажите имя.',ph:'Имя'},
+ {id:'contact',type:'text',q:'Ваш Telegram или телефон',req:'Оставьте Telegram или телефон, чтобы я мог ответить.',ph:'@username',hint:'Отчёт придёт мне автоматически, а по этому контакту я вам отвечу.'},
+ {id:'city',type:'text',q:'Город и часовой пояс',ph:'Например: Тбилиси, GMT+4'},
+ {id:'job',type:'text',q:'Чем вы занимаетесь?',ph:'Профессия, сфера, должность'}
+]});
+S.push({label:'Цели',fields:[
+ {id:'goals',type:'chips',q:'Зачем вам английский? Выберите всё, что подходит',o:['Работа и созвоны','Собеседование, новая работа','Переезд или жизнь за границей','Путешествия','Экзамен (PTE, IELTS и др.)','Сериалы, YouTube, подкасты','Общение с иностранцами','Помогать детям с английским','Для себя, для уверенности']},
+ {id:'goalMain',type:'area',q:'Главная цель своими словами',hint:'Что вы хотите уметь через 3 месяца? Чем конкретнее, тем лучше.',ph:'Например: спокойно говорить на дейли-созвонах и не готовить каждую фразу заранее'},
+ {id:'deadline',type:'single',q:'Есть ли срок?',o:['Нет, учусь для себя','В ближайший месяц','В ближайшие 3 месяца','В течение полугода','В течение года']},
+ {id:'motivation',type:'single',q:'Насколько это для вас важно сейчас?',o:['Хочу когда-нибудь','Важно, но не срочно','Очень важно','Нужно срочно']}
+]});
+S.push({label:'Интересы',fields:[
+ {id:'hobbies',type:'chips',q:'Чем вы любите заниматься?',o:['Спорт и фитнес','Путешествия','Кино и сериалы','Музыка','Игры','Книги','Готовка и еда','Технологии и гаджеты','Бизнес и деньги','Психология','Искусство и дизайн','Природа и походы','Дети и семья','Животные','Мода','Авто']},
+ {id:'media',type:'area',q:'Что вы смотрите, слушаете, читаете?',hint:'Любимые сериалы, фильмы, блогеры, подкасты, музыканты. На любом языке. Из этого я соберу материалы для уроков.',ph:'Например: «Друзья», подкаст Lex Fridman, Imagine Dragons'},
+ {id:'topics',type:'chips',q:'О чём было бы интересно говорить на уроках?',o:['Работа и карьера','IT и технологии','Путешествия и культуры','Кино и сериалы','Отношения и психология','Еда','Новости и общество','Деньги и бизнес','Здоровье и спорт','Юмор и мемы','Наука','Искусство']},
+ {id:'avoid',type:'text',q:'О чём точно не хотите говорить?',ph:'Если есть такие темы'}
+]});
+S.push({label:'Опыт',fields:[
+ {id:'history',type:'single',q:'Сколько вы учили английский?',o:['Почти не учил(а)','Только школа / вуз','Школа + курсы или репетитор','Много лет, с перерывами','Жил(а) или работал(а) в англоязычной среде']},
+ {id:'lastTime',type:'single',q:'Когда последний раз занимались регулярно?',o:['Сейчас занимаюсь','Меньше года назад','1–5 лет назад','Больше 5 лет назад']},
+ {id:'pastBad',type:'text',q:'Что не сработало в прошлом обучении?',ph:'Что надоедало, мешало, разочаровало'},
+ {id:'pastGood',type:'text',q:'А что работало хорошо?',ph:''},
+ {id:'selfLevel',type:'levels',q:'Как бы вы сами оценили свой уровень?',o:[['Начальный','Знаю отдельные слова и фразы'],['Базовый','Говорю о простом, медленно и с ошибками'],['Средний','Объясняюсь в большинстве ситуаций, но не хватает слов'],['Выше среднего','Говорю свободно, хочу звучать естественнее и точнее'],['Продвинутый','Почти без ограничений']]}
+]});
+S.push({label:'Что сложно',fields:[
+ {id:'hard',type:'chips',q:'Что сейчас даётся тяжелее всего?',o:['Говорить спонтанно','Понимать быструю речь','Грамматика','Словарный запас','Произношение и акцент','Писать','Страх ошибиться, ступор','Нет времени заниматься']},
+ {id:'feel',type:'single',q:'Что вы чувствуете, когда нужно говорить по-английски?',o:['Спокойно','Лёгкое волнение','Сильный дискомфорт','Ступор, проще промолчать']}
+]});
+S.push({label:'Самооценка',fields:[{id:'cando',type:'cando',q:'Насколько вы можете это сделать на английском сейчас?',rows:CANDO}]});
+S.push({label:'Тест',render:testIntro});
+const TEST0=S.length;
+TEST.forEach((t,i)=>S.push({label:'Тест · '+(i+1)+' из '+TEST.length,test:i}));
+const READ0=S.length;
+S.push({label:'Чтение',render:drawReading});
+S.push({label:'Аудирование',render:listenIntro});
+const LIST0=S.length;
+LISTEN.forEach((l,i)=>S.push({label:'Аудирование · '+(i+1)+' из '+LISTEN.length,listen:i}));
+S.push({label:'Письмо',fields:[
+ {id:'w1',type:'area',q:'1. Напишите по-английски 4–6 предложений о себе: кто вы, чем занимаетесь, зачем вам английский',hint:'Без переводчика и без проверки. Ошибки — нормальная часть диагностики.',ph:'Hi Artyom! My name is…'},
+ {id:'w2',type:'area',q:'2. Что вы делали в прошлые выходные? 3–5 предложений',hint:'Пишите как получится. Если совсем не получается, напишите по-русски, что хотели сказать.',ph:'Last weekend I…'}
+]});
+S.push({label:'Формат',fields:[
+ {id:'format',type:'chips',q:'Какой формат вам интересен?',o:['Мини-группа (2–4 человека)','Индивидуальные занятия','Разговорный клуб','Подготовка к собеседованию','Подготовка к экзамену','Самостоятельно с тренажёром Shadow','Пока не знаю']},
+ {id:'style',type:'chips',q:'Что вам ближе на уроках?',o:['Много разговорной практики','Чёткая структура и грамматика','Слова и фразы для работы','Произношение и живая речь','Разбор сериалов и видео','Ролевые игры и симуляции','Письмо с проверкой']},
+ {id:'correct',type:'single',q:'Как исправлять ошибки?',o:['Сразу, по ходу','В конце урока, списком','Только важные, не перебивая']},
+ {id:'hw',type:'single',q:'Сколько времени готовы уделять английскому вне уроков?',o:['До 30 минут в неделю','1–2 часа в неделю','3+ часа в неделю','Только уроки']},
+ {id:'budget',type:'single',q:'Какой бюджет на английский в месяц для вас комфортен?',hint:'Нужно, чтобы предложить подходящий формат.',o:['До $50','$50–100','$100–200','$200+','Пока не знаю']}
+]});
+S.push({label:'Расписание',fields:[
+ {id:'freq',type:'single',q:'Как часто хотели бы заниматься?',o:['1 раз в неделю','2 раза в неделю','3 раза в неделю','Пока не знаю']},
+ {id:'days',type:'chips',q:'Удобные дни',o:['Пн','Вт','Ср','Чт','Пт','Сб','Вс']},
+ {id:'times',type:'chips',q:'Удобное время',o:['Утро','День','Вечер']},
+ {id:'extra',type:'area',q:'Что ещё мне важно знать?',hint:'Особенности, пожелания, вопросы ко мне',ph:''}
+]});
+S.push({label:'Готово',render:finish});
+
+const card=document.getElementById('card');
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let audio=null;
+function stopAudio(){if(audio){try{audio.pause()}catch(e){}audio=null}}
+function go(n,push){stopAudio();n=Math.max(0,Math.min(S.length-1,n));if(push!==false&&n!==step)hist.push(step);step=n;save();draw();window.scrollTo({top:0,behavior:'smooth'})}
+function back(){stopAudio();step=hist.length?hist.pop():Math.max(0,step-1);save();draw();window.scrollTo({top:0,behavior:'smooth'})}
+function draw(){
+ const st=S[step];
+ document.getElementById('stepLabel').textContent=st.label;
+ document.getElementById('stepCount').textContent=step>0&&step<S.length-1?(step+' / '+(S.length-2)):'';
+ document.getElementById('barFill').style.width=Math.round(step/(S.length-1)*100)+'%';
+ if(st.render) return st.render();
+ if(st.test!==undefined) return drawTest(st.test);
+ if(st.listen!==undefined) return drawListen(st.listen);
+ let h='<h2>'+esc(st.label)+'</h2>'; st.fields.forEach(f=>h+=fieldHTML(f));
+ h+='<div class="err" id="err"></div>'+navHTML(); card.innerHTML=h; bindFields(); bindNav(st);
+}
+function fieldHTML(f){
+ const v=A[f.id]; let h='<div class="field">';
+ const hint=f.hint?'<span class="hint">'+esc(f.hint)+'</span>':'';
+ const lab='<span class="q">'+esc(f.q)+'</span>'+hint;
+ if(f.type==='text') h+='<label for="f_'+f.id+'">'+esc(f.q)+'</label>'+hint+'<input type="text" id="f_'+f.id+'" data-id="'+f.id+'" placeholder="'+esc(f.ph||'')+'" value="'+esc(v||'')+'" autocomplete="off">';
+ else if(f.type==='area') h+='<label for="f_'+f.id+'">'+esc(f.q)+'</label>'+hint+'<textarea id="f_'+f.id+'" data-id="'+f.id+'" placeholder="'+esc(f.ph||'')+'" spellcheck="false" autocorrect="off" autocapitalize="sentences">'+esc(v||'')+'</textarea>';
+ else if(f.type==='chips'){const sel=v||[];h+=lab+'<div class="chips">'+f.o.map(o=>'<button type="button" class="chip" data-multi="'+f.id+'" data-v="'+esc(o)+'" aria-pressed="'+sel.includes(o)+'">'+esc(o)+'</button>').join('')+'</div>'}
+ else if(f.type==='single'){h+=lab+'<div class="chips">'+f.o.map(o=>'<button type="button" class="chip" data-one="'+f.id+'" data-v="'+esc(o)+'" aria-pressed="'+(v===o)+'">'+esc(o)+'</button>').join('')+'</div>'}
+ else if(f.type==='levels'){h+=lab+'<div class="levels">'+f.o.map(o=>'<button type="button" class="opt" data-one="'+f.id+'" data-v="'+esc(o[0])+'" aria-pressed="'+(v===o[0])+'"><b>'+esc(o[0])+'</b><small>'+esc(o[1])+'</small></button>').join('')+'</div>'}
+ else if(f.type==='cando'){const cv=v||{};h+=lab+'<div class="cando">'+f.rows.map((r,i)=>'<div class="row"><span>'+esc(r)+'</span><div class="chips">'+['Легко','С трудом','Пока нет'].map(o=>'<button type="button" class="chip" data-cando="'+i+'" data-v="'+o+'" aria-pressed="'+(cv[i]===o)+'">'+o+'</button>').join('')+'</div></div>').join('')+'</div>'}
+ return h+'</div>';
+}
+function navHTML(n){return '<div class="nav"><button type="button" class="btn ghost" id="back">← Назад</button><button type="button" class="btn" id="next">'+(n||'Дальше →')+'</button></div>'}
+function bindFields(){
+ card.querySelectorAll('input[data-id],textarea[data-id]').forEach(el=>el.addEventListener('input',()=>{A[el.dataset.id]=el.value;save()}));
+ card.querySelectorAll('[data-multi]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.multi,arr=A[id]||[],i=arr.indexOf(b.dataset.v);if(i>-1)arr.splice(i,1);else arr.push(b.dataset.v);A[id]=arr;b.setAttribute('aria-pressed',i===-1);save()}));
+ card.querySelectorAll('[data-one]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.one;A[id]=b.dataset.v;card.querySelectorAll('[data-one="'+id+'"]').forEach(x=>x.setAttribute('aria-pressed',x===b));save()}));
+ card.querySelectorAll('[data-cando]').forEach(b=>b.addEventListener('click',()=>{const cv=A.cando||{};cv[b.dataset.cando]=b.dataset.v;A.cando=cv;b.parentElement.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed',x===b));save()}));
+}
+function bindNav(st,nextFn){
+ const b=document.getElementById('back'); if(b) b.addEventListener('click',back);
+ const n=document.getElementById('next'); if(n) n.addEventListener('click',()=>{
+  if(st&&st.fields){const m=st.fields.find(f=>f.req&&!(A[f.id]||'').trim());if(m){document.getElementById('err').textContent=m.req;return}}
+  nextFn?nextFn():go(step+1)});
+}
+function intro(){
+ card.innerHTML='<h1>Узнаем ваш уровень английского</h1>'+
+ '<p>Здравствуйте! Я Артём, преподаватель английского (CELTA, 10+ лет опыта, носитель американского английского). За 20 минут я пойму ваш уровень, цели и интересы и предложу формат, который подойдёт именно вам.</p>'+
+ '<ul class="facts"><li><span>~20 мин</span><span>Цели и интересы, тест на грамматику, чтение, аудирование и короткое письмо</span></li>'+
+ '<li><span>🎧</span><span>Нужен звук: в аудировании живая речь из моего тренажёра Shadow</span></li>'+
+ '<li><span>честно</span><span>Это диагностика, а не экзамен. «Не знаю» — полезный ответ. Без переводчика, пожалуйста</span></li>'+
+ '<li><span>в конце</span><span>Ответы придут мне автоматически, и я пришлю разбор и план</span></li></ul>'+
+ '<p class="hint">Можно прерваться: ответы сохраняются на этом устройстве.</p>'+
+ '<div class="nav"><span></span><button type="button" class="btn" id="next">'+(Object.keys(A).length?'Продолжить →':'Начать →')+'</button></div>';
+ bindNav(null);
+}
+function testIntro(){
+ card.innerHTML='<h2>Грамматика и слова</h2>'+
+ '<p>До '+TEST.length+' вопросов, от простых к сложным. Если вопросы станут слишком трудными, тест закончится сам. Это нормально и значит, что мы нашли ваш уровень.</p>'+
+ '<p class="lead">Не угадывайте: если не уверены, выбирайте «Не знаю».</p>'+navHTML('Начать →');
+ bindNav(null);
+}
+function drawTest(i){
+ const t=TEST[i],v=A['t'+i];
+ let h='<span class="qnum">ВОПРОС '+(i+1)+' / '+TEST.length+'</span><p class="q">'+(t.s.includes('___')?'Выберите вариант, который подходит:':'Выберите ответ:')+'</p><div class="sentence">'+esc(t.s)+'</div><div class="opts">';
+ t.o.forEach((o,k)=>h+='<button type="button" class="opt" data-ans="'+k+'" aria-pressed="'+(v===k)+'"><span class="k">'+'ABCD'[k]+'</span>'+esc(o)+'</button>');
+ h+='<button type="button" class="opt idk" data-ans="-1" aria-pressed="'+(v===-1)+'"><span class="k">?</span>Не знаю</button></div><div class="nav"><button type="button" class="btn ghost" id="back">← Назад</button><span></span></div>';
+ card.innerHTML=h;
+ card.querySelectorAll('[data-ans]').forEach(b=>b.addEventListener('click',()=>{
+  A['t'+i]=+b.dataset.ans;card.querySelectorAll('[data-ans]').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  // End of a level: 0–1 right out of 5 means the next levels would be guesswork.
+  let next=step+1;
+  if(i%5===4){let ok=0;for(let k=i-4;k<=i;k++)if(A['t'+k]===TEST[k].a)ok++;
+   if(ok<=1){A.testStop=i;next=READ0}else if(A.testStop!==undefined&&A.testStop<=i)delete A.testStop}
+  save();setTimeout(()=>go(next),250)}));
+ bindNav(null);
+}
+function drawReading(){
+ const sel=A.read||{};
+ let h='<span class="tag">Чтение · ~4 мин</span><h2>'+esc(READING.title)+'</h2><p class="lead">Прочитайте статью и ответьте на 5 вопросов. Если текст пока слишком сложный, просто пропустите.</p>'+
+ '<div class="passage">'+READING.text.map(p=>'<p>'+esc(p)+'</p>').join('')+'</div>';
+ READING.q.forEach((q,i)=>{h+='<div class="rq"><span class="qnum">ВОПРОС '+(i+1)+'</span><p class="q">'+esc(q.q)+'</p><div class="opts">'+
+  q.o.map((o,k)=>'<button type="button" class="opt" data-r="'+i+'" data-k="'+k+'" aria-pressed="'+(sel[i]===k)+'"><span class="k">'+'ABCD'[k]+'</span>'+esc(o)+'</button>').join('')+'</div></div>'});
+ h+='<div class="err" id="err"></div><div class="nav"><button type="button" class="btn ghost" id="back">← Назад</button><span style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="btn ghost" id="skip">Слишком сложно</button><button type="button" class="btn" id="next">Дальше →</button></span></div>';
+ card.innerHTML=h;
+ card.querySelectorAll('[data-r]').forEach(b=>b.addEventListener('click',()=>{const r=A.read||{};r[b.dataset.r]=+b.dataset.k;A.read=r;delete A.readSkip;
+  card.querySelectorAll('[data-r="'+b.dataset.r+'"]').forEach(x=>x.setAttribute('aria-pressed',x===b));save()}));
+ document.getElementById('skip').addEventListener('click',()=>{A.readSkip=true;save();go(step+1)});
+ bindNav(null);
+}
+function listenIntro(){
+ card.innerHTML='<span class="tag">Аудирование · ~4 мин</span><h2>Живая речь</h2>'+
+ '<p>Вы услышите '+LISTEN.length+' коротких фраз в естественном темпе, как говорят носители. Напишите то, что услышали, слово в слово.</p>'+
+ '<ul class="facts"><li><span>'+MAXPLAYS+' раза</span><span>Каждую фразу можно прослушать до '+MAXPLAYS+' раз</span></li>'+
+ '<li><span>Shadow</span><span>Фразы из моего тренажёра <a href="'+SHADOW+'?utm_source=level" target="_blank" rel="noopener">Neuro-Fluent Shadow</a>: там их можно разобрать и повторять за диктором</span></li></ul>'+
+ '<p class="hint">Включите звук или наденьте наушники.</p>'+navHTML('Начать →');
+ bindNav(null);
+}
+function drawListen(i){
+ const l=LISTEN[i],L=A.listen||{},cur=L[i]||{plays:0,text:''};
+ const left=MAXPLAYS-cur.plays;
+ card.innerHTML='<span class="qnum">ФРАЗА '+(i+1)+' / '+LISTEN.length+'</span><h2>Что вы слышите?</h2>'+
+ '<div class="play"><button type="button" class="btn" id="play" '+(left<=0?'disabled style="opacity:.5;cursor:default"':'')+'>▶ '+(cur.plays?'Ещё раз':'Слушать')+'</button><span class="left" id="left">'+(left>0?'Осталось прослушиваний: '+left:'Прослушивания закончились')+'</span></div>'+
+ '<div class="field"><label for="lt">Напишите фразу по-английски</label><input type="text" id="lt" value="'+esc(cur.text||'')+'" placeholder="Пишите всё, что расслышали" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></div>'+
+ '<div class="err" id="err"></div>'+
+ '<div class="nav"><button type="button" class="btn ghost" id="back">← Назад</button><span style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="btn ghost" id="none">Не разобрал(а)</button><button type="button" class="btn" id="next">Дальше →</button></span></div>';
+ const put=o=>{const LL=A.listen||{};LL[i]=Object.assign({plays:0,text:''},LL[i],o);A.listen=LL;save()};
+ document.getElementById('lt').addEventListener('input',e=>put({text:e.target.value,none:false}));
+ document.getElementById('play').addEventListener('click',()=>{
+  const c=(A.listen||{})[i]||{plays:0};if(c.plays>=MAXPLAYS)return;
+  stopAudio();audio=new Audio(l.src);
+  audio.play().then(()=>{put({plays:c.plays+1});const n=MAXPLAYS-c.plays-1;
+   document.getElementById('left').textContent=n>0?'Осталось прослушиваний: '+n:'Прослушивания закончились';
+   const pb=document.getElementById('play');pb.textContent='▶ Ещё раз';if(n<=0){pb.disabled=true;pb.style.opacity='.5'}
+  }).catch(()=>{document.getElementById('err').textContent='Не получилось включить звук. Проверьте, что звук на устройстве включён, и нажмите ещё раз.'});
+ });
+ document.getElementById('none').addEventListener('click',()=>{put({none:true,text:''});go(step+1)});
+ bindNav(null,()=>{const c=(A.listen||{})[i];if(!c||(!c.plays&&!(c.text||'').trim())){document.getElementById('err').textContent='Сначала прослушайте фразу.';return}go(step+1)});
+}
+
+// Listening score: share of the phrase's words heard in the right order (contractions and gonna/gotta forgiven).
+const EXP={"i've":'i have',"it's":'it is',"i'm":'i am',"don't":'do not',"you're":'you are',"we're":'we are',"can't":'can not',"cannot":'can not',"gotta":'got to',"gonna":'going to',"ok":'okay',"wanna":'want to'};
+function words(s){return String(s||'').toLowerCase().replace(/[’`]/g,"'").replace(/[^a-z' ]+/g,' ').split(/\s+/).filter(Boolean).flatMap(w=>(EXP[w]||w).split(' ')).map(w=>w.replace(/'/g,''))}
+function lcs(a,b){const d=Array(b.length+1).fill(0);for(let i=1;i<=a.length;i++){let prev=0;for(let j=1;j<=b.length;j++){const t=d[j];d[j]=a[i-1]===b[j-1]?prev+1:Math.max(d[j],d[j-1]);prev=t}}return d[b.length]}
+function heard(i){const c=(A.listen||{})[i];if(!c||c.none||!(c.text||'').trim())return 0;const t=words(LISTEN[i].t),u=words(c.text);return Math.round(lcs(t,u)/t.length*100)}
+
+function grammar(){
+ const by={},tot={};BANDS.forEach(b=>{by[b]=0;tot[b]=0});let score=0,idk=0,asked=0;
+ TEST.forEach((t,i)=>{tot[t.lvl]++;const v=A['t'+i];if(v===undefined)return;asked++;if(v===-1)idk++;else if(v===t.a){score++;by[t.lvl]++}});
+ let top=-1;for(let k=0;k<BANDS.length;k++){if(by[BANDS[k]]>=3)top=k;else break}
+ const est=top<0?'A0–A1':top===BANDS.length-1?'C1+':BANDS[top]+'–'+BANDS[top+1];
+ return {by,tot,score,idk,asked,est};
+}
+const list=v=>v&&v.length?v.join(', '):'—';
+const val=v=>v&&String(v).trim()?String(v).trim():'—';
+function buildReport(){
+ const g=grammar(),lines=[];
+ TEST.forEach((t,i)=>{const v=A['t'+i];if(v===undefined)return;let r;
+  if(v===-1)r='не знаю';else if(v===t.a)r='✅ '+t.o[v];else r='❌ '+t.o[v]+' (верно: '+t.o[t.a]+')';
+  lines.push((i+1)+'. ['+t.lvl+'] '+t.s+' → '+r)});
+ const rd=A.read||{};let rOk=0,rN=0;const rLines=READING.q.map((q,i)=>{const v=rd[i];if(v===undefined)return (i+1)+'. —';rN++;if(v===q.a){rOk++;return (i+1)+'. ✅'}return (i+1)+'. ❌ '+q.o[v]+' (верно: '+q.o[q.a]+')'});
+ const lis=LISTEN.map((l,i)=>{const c=(A.listen||{})[i]||{};return {p:heard(i),c,l}});
+ const lAvg=Math.round(lis.reduce((s,x)=>s+x.p,0)/LISTEN.length);
+ const cv=A.cando||{};
+ const out=[
+'🧭 АНКЕТА УРОВНЯ — Neuro-Fluent','Дата: '+new Date().toLocaleDateString('ru-RU'),'',
+'📊 ИТОГ','Грамматика и слова: '+g.score+' / '+g.asked+' (не знаю: '+g.idk+')'+(A.testStop!==undefined?' — тест остановлен после вопроса '+(A.testStop+1):''),
+'По уровням: '+BANDS.map(b=>b+' '+g.by[b]+'/'+g.tot[b]).join(' · '),
+'Примерный уровень (грамматика): '+g.est,
+'Чтение (B1–B2): '+(A.readSkip?'пропущено, «слишком сложно»':rOk+' / '+READING.q.length),
+'Аудирование: в среднем '+lAvg+'% слов расслышано','',
+'👤 О СЕБЕ','Имя: '+val(A.name),'Контакт: '+val(A.contact),'Город / часовой пояс: '+val(A.city),'Работа: '+val(A.job),'',
+'🎯 ЦЕЛИ','Зачем: '+list(A.goals),'Главная цель: '+val(A.goalMain),'Срок: '+val(A.deadline),'Важность: '+val(A.motivation),'',
+'💛 ИНТЕРЕСЫ','Хобби: '+list(A.hobbies),'Смотрит / слушает: '+val(A.media),'Темы для уроков: '+list(A.topics),'Не хочет обсуждать: '+val(A.avoid),'',
+'📚 ОПЫТ','Учил(а): '+val(A.history),'Последний раз регулярно: '+val(A.lastTime),'Не сработало: '+val(A.pastBad),'Сработало: '+val(A.pastGood),'Самооценка: '+val(A.selfLevel),'',
+'😬 СЛОЖНОСТИ','Тяжелее всего: '+list(A.hard),'Ощущения при разговоре: '+val(A.feel),'',
+'🪞 МОГУ НА АНГЛИЙСКОМ',...CANDO.map((r,i)=>'• '+r+': '+(cv[i]||'—')),'',
+'📝 ТЕСТ ПО ВОПРОСАМ',...lines,'',
+'📖 ЧТЕНИЕ',...(A.readSkip?['пропущено']:rLines),'',
+'🎧 АУДИРОВАНИЕ (фраза → что написал(а), прослушиваний)',...lis.map((x,i)=>(i+1)+'. '+x.l.t+'\n   → '+(x.c.none?'не разобрал(а)':val(x.c.text))+'  ['+x.p+'%, '+(x.c.plays||0)+'×]'),'',
+'✍️ ПИСЬМО 1 (о себе)',val(A.w1),'','✍️ ПИСЬМО 2 (прошлые выходные)',val(A.w2),'',
+'🗂 ФОРМАТ','Интересно: '+list(A.format),'Ближе на уроках: '+list(A.style),'Исправление ошибок: '+val(A.correct),'Время вне уроков: '+val(A.hw),'Бюджет в месяц: '+val(A.budget),'',
+'📅 РАСПИСАНИЕ','Частота: '+val(A.freq),'Дни: '+list(A.days),'Время: '+list(A.times),'',
+'💬 ЕЩЁ',val(A.extra)];
+ return {text:out.join('\n'),est:g.est,lis};
+}
+function finish(){
+ const R=buildReport(),r=R.text;
+ const missed=R.lis.filter(x=>x.p<100);
+ const name=val(A.name)==='—'?'':', '+esc(A.name.trim());
+ card.innerHTML='<h2>Спасибо'+name+'!</h2>'+
+ '<p class="sendstate" id="sendstate">Отправляю ответы Артёму…</p>'+
+ '<p>Я посмотрю результаты и пришлю вам в Telegram разбор: ваш уровень, что мешает больше всего и какой формат подойдёт.</p>'+
+ '<p class="lead">Хотите, чтобы разбор был точнее? Отправьте мне голосовое на английском на 1 минуту: о себе и о том, зачем вам английский. Мой Telegram: <a href="https://t.me/rawmeatsalad" target="_blank" rel="noopener">@rawmeatsalad</a></p>'+
+ '<div class="shadow"><h3>Пока ждёте: потренируйте эти фразы</h3>'+
+ (missed.length?'<p>Фразы из аудирования, которые вы расслышали не полностью. Откройте их в Shadow: разбор каждого слова, медленная скорость, повтор за диктором.</p><ul>'+missed.map(x=>'<li><a href="'+SHADOW+'?p='+encodeURIComponent(x.l.t)+'&utm_source=level" target="_blank" rel="noopener">'+esc(x.l.t)+'</a></li>').join('')+'</ul>'
+  :'<p>Вы расслышали все фразы. Отличный слух! В Shadow можно тренировать любые фразы: вставьте свою и повторяйте за диктором.</p>')+
+ '<p><a href="'+SHADOW+'?utm_source=level" target="_blank" rel="noopener">Открыть тренажёр Shadow →</a></p></div>'+
+ '<details class="manual" id="manual"><summary>Отчёт не отправился? Скопируйте его вручную</summary>'+
+ '<button type="button" class="btn" id="copy">Скопировать отчёт</button><div class="toast" id="toast" role="status"></div>'+
+ '<pre class="report" id="report" tabindex="0">'+esc(r)+'</pre></details>'+
+ '<div class="nav"><button type="button" class="btn ghost" id="back">← Изменить ответы</button><button type="button" class="btn ghost" id="restart">Начать заново</button></div>';
+ const st=document.getElementById('sendstate');
+ const sent=()=>{st.textContent='✓ Ответы отправлены Артёму.';st.className='sendstate ok'};
+ const fail=()=>{st.textContent='Не получилось отправить автоматически. Скопируйте отчёт ниже и пришлите мне в Telegram.';st.className='sendstate bad';document.getElementById('manual').open=true};
+ const sig=r.length+'|'+r.slice(-200);
+ if(A.sentSig===sig) sent();
+ else fetch('/api/placement',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:A.name||'',contact:A.contact||'',level:R.est,report:r})})
+  .then(res=>{if(!res.ok)throw 0;A.sentSig=sig;save();sent()}).catch(fail);
+ document.getElementById('copy').addEventListener('click',()=>{
+  const done=()=>{document.getElementById('toast').textContent='Скопировано. Вставьте в чат и отправьте мне.'};
+  const fb=()=>{const pre=document.getElementById('report'),sel=window.getSelection(),rg=document.createRange();rg.selectNodeContents(pre);sel.removeAllRanges();sel.addRange(rg);let ok=false;try{ok=document.execCommand('copy')}catch(e){}
+   document.getElementById('toast').textContent=ok?'Скопировано. Вставьте в чат и отправьте мне.':'Текст выделен: скопируйте (Ctrl+C) и отправьте мне.'};
+  try{navigator.clipboard.writeText(r).then(done,fb)}catch(e){fb()}
+ });
+ document.getElementById('back').addEventListener('click',back);
+ let armed=false;document.getElementById('restart').addEventListener('click',e=>{if(!armed){armed=true;e.target.textContent='Точно? Нажмите ещё раз';return}A={};hist=[];go(0,false)});
+}
+draw();
+})();
+</script>
+</body>
+</html>
