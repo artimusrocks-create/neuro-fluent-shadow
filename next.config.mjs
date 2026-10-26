@@ -8,6 +8,7 @@ const nextConfig = {
       { source: "/anketa", destination: "/anketa.html" },
       { source: "/welcome", destination: "/welcome.html" },
       { source: "/level", destination: "/level.html" },
+      { source: "/kostya", destination: "/kostya.html" },
       { source: "/misha", destination: "/misha.html" },
       { source: "/misha/homework", destination: "/misha-homework.html" },
     ];
